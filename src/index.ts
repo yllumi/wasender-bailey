@@ -196,23 +196,46 @@ app.get('/qr', async (c) => {
   }
 })
 
-// Generate or regenerate app key endpoint
+// Get app key endpoint
 app.get('/appkey', validateBasicAuth, async (c) => {
   try {
-    const newAppKey = generateAppKey()
-    currentAppKey = newAppKey
+    const appKey = process.env.APP_KEY || ''
+    let notes = ''
+    if(!appKey) {
+      notes = 'Anda belum mengatur app key di .env'
+    } else {
+      notes = 'Berikut app key Anda: '
+    }
     
     return c.json({
       success: true,
-      message: 'App key berhasil di-generate',
-      app_key: newAppKey,
-      note: 'Simpan app key ini dengan aman. Gunakan di header X-App-Key atau query parameter app_key'
+      message: notes,
+      app_key: appKey,
+    })
+  } catch (error) {
+    console.error('Error getting app key:', error)
+    return c.json({ 
+      success: false, 
+      message: 'Gagal mengambil app key',
+      error: String(error)
+    }, 500)
+  }
+})
+
+app.get('/generate-appkey', async (c) => {
+  try {
+    const appKey = generateAppKey()
+
+    return c.json({
+      success: true,
+      message: "App key berhasil digenerate. Simpan app key di .env.",
+      app_key: appKey,
     })
   } catch (error) {
     console.error('Error generating app key:', error)
     return c.json({ 
       success: false, 
-      message: 'Gagal generate app key',
+      message: 'Gagal menggenerate app key',
       error: String(error)
     }, 500)
   }

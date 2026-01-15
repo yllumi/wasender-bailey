@@ -28,17 +28,17 @@ bun install
 
 3. Copy dan edit file environment:
 ```bash
-cp .env.example .env
+cp env .env
 ```
 
 4. Edit file `.env` sesuai kebutuhan:
 ```env
-PORT=8990
+PORT=3000
 
 # App Key untuk autentikasi API
 APP_KEY=your-secret-app-key-here
 
-# HTTP Basic Auth untuk endpoint /appkey
+# HTTP Basic Auth untuk akses endpoint /appkey
 HTTP_AUTH_USERNAME=admin
 HTTP_AUTH_PASSWORD=your-secure-password
 ```
@@ -49,11 +49,11 @@ HTTP_AUTH_PASSWORD=your-secure-password
 bun run src/index.ts
 ```
 
-Server akan berjalan di `http://localhost:8990` (atau port yang Anda set di `.env`)
+Server akan berjalan di `http://localhost:3000` (atau port yang Anda set di `.env`)
 
 ## 📱 Menghubungkan WhatsApp
 
-1. Buka browser dan akses: `http://localhost:8990/qr`
+1. Buka browser dan akses: `http://localhost:3000/qr`
 2. Scan QR code dengan WhatsApp di ponsel Anda:
    - Buka WhatsApp → **Settings** → **Linked Devices** → **Link a Device**
 3. Scan QR code yang muncul di browser
@@ -61,12 +61,36 @@ Server akan berjalan di `http://localhost:8990` (atau port yang Anda set di `.en
 
 **Note:** Session akan tersimpan di folder `auth_info_baileys`, jadi Anda tidak perlu scan QR code setiap kali restart aplikasi.
 
-## 🔑 Generate App Key
+## 🔑 Setup App Key
 
-Sebelum mengirim pesan, Anda perlu generate App Key terlebih dahulu:
+### Generate App Key Baru
+
+Generate app key baru untuk disimpan di file `.env`:
 
 ```bash
-curl -X POST http://localhost:8990/appkey \
+curl -X GET http://localhost:3000/generate-appkey
+```
+
+Response:
+```json
+{
+  "success": true,
+  "message": "App key berhasil digenerate. Simpan app key di .env.",
+  "app_key": "kodeappkeygeneratedkamu"
+}
+```
+
+**Simpan App Key** tersebut ke file `.env`:
+```env
+APP_KEY=kodeappkeygeneratedkamu
+```
+
+### Cek App Key yang Terdaftar
+
+Jika lupa app key, Anda bisa cek tanpa perlu masuk ke server:
+
+```bash
+curl -X GET http://localhost:3000/appkey \
   -u admin:your-secure-password
 ```
 
@@ -74,13 +98,10 @@ Response:
 ```json
 {
   "success": true,
-  "message": "App key berhasil di-generate",
-  "app_key": "b5a4e372a4ec0c15683ff08e132e7042ebd5b363d338cfd864ba6f826d95dd90",
-  "note": "Simpan app key ini dengan aman..."
+  "message": "Berikut app key Anda: ",
+  "app_key": "kodeappkeygeneratedkamu"
 }
 ```
-
-**Simpan App Key** yang didapat untuk digunakan pada endpoint `/send`.
 
 ## 📡 API Endpoints
 
@@ -89,18 +110,39 @@ Menampilkan QR code untuk menghubungkan WhatsApp.
 
 **Response:** HTML page dengan QR code
 
-**Akses via browser:** `http://localhost:8990/qr`
+**Akses via browser:** `http://localhost:3000/qr`
 
 ---
 
-### 2. POST `/appkey`
-Generate atau regenerate App Key baru.
+### 2. GET `/generate-appkey`
+Generate app key baru untuk disimpan di file `.env`.
+
+**Authentication:** Tidak diperlukan
+
+**Request:**
+```bash
+curl -X GET http://localhost:3000/generate-appkey
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "App key berhasil digenerate. Simpan app key di .env.",
+  "app_key": "abc123..."
+}
+```
+
+---
+
+### 4. GET `/appkey`
+Mengecek app key yang sudah terdaftar di `.env`. Berguna jika lupa app key tanpa perlu masuk ke server.
 
 **Authentication:** HTTP Basic Auth
 
 **Request:**
 ```bash
-curl -X POST http://localhost:8990/appkey \
+curl -X GET http://localhost:3000/appkey \
   -u admin:password
 ```
 
@@ -108,7 +150,8 @@ curl -X POST http://localhost:8990/appkey \
 ```json
 {
   "success": true,
-  "app_key": "..."
+  "message": "Berikut app key Anda: ",
+  "app_key": "abc123..."
 }
 ```
 
@@ -129,9 +172,9 @@ Mengirim pesan WhatsApp ke nomor tujuan.
 
 **Request Example (dengan Header):**
 ```bash
-curl -X POST http://localhost:8990/send \
+curl -X POST http://localhost:3000/send \
   -H "Content-Type: application/json" \
-  -H "X-App-Key: b5a4e372a4ec0c15683ff08e132e7042ebd5b363d338cfd864ba6f826d95dd90" \
+  -H "X-App-Key: kodeappkeygeneratedkamu" \
   -d '{
     "number": "081234567890",
     "message": "Halo dari WhatsApp API!"
@@ -140,7 +183,7 @@ curl -X POST http://localhost:8990/send \
 
 **Request Example (dengan Query Parameter):**
 ```bash
-curl -X POST "http://localhost:8990/send?app_key=YOUR_APP_KEY" \
+curl -X POST "http://localhost:3000/send?app_key=YOUR_APP_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "number": "628986818780",
@@ -173,6 +216,210 @@ API otomatis memformat nomor telepon Indonesia:
 - `8123456890` → `628123456890`
 
 Untuk nomor internasional, gunakan format lengkap dengan kode negara.
+
+## 💻 Contoh Kode Integrasi
+
+### PHP
+
+```php
+<?php
+// Kirim pesan WhatsApp menggunakan PHP
+
+$url = 'http://localhost:3000/send';
+$appKey = 'kodeappkeygeneratedkamu';
+
+$data = [
+    'number' => '081234567890',
+    'message' => 'Halo dari PHP!'
+];
+
+$options = [
+    'http' => [
+        'header'  => [
+            "Content-Type: application/json",
+            "X-App-Key: $appKey"
+        ],
+        'method'  => 'POST',
+        'content' => json_encode($data)
+    ]
+];
+
+$context  = stream_context_create($options);
+$result = file_get_contents($url, false, $context);
+
+if ($result === FALSE) {
+    echo "Error sending message\n";
+} else {
+    $response = json_decode($result, true);
+    echo "Success: " . $response['message'] . "\n";
+    echo "Sent to: " . $response['to'] . "\n";
+}
+?>
+```
+
+### PHP dengan cURL
+
+```php
+<?php
+// Kirim pesan WhatsApp menggunakan cURL
+
+$url = 'http://localhost:3000/send';
+$appKey = 'kodeappkeygeneratedkamu';
+
+$data = [
+    'number' => '081234567890',
+    'message' => 'Halo dari PHP cURL!'
+];
+
+$ch = curl_init($url);
+curl_setopt($ch, CURLOPT_POST, 1);
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Content-Type: application/json',
+    "X-App-Key: $appKey"
+]);
+
+$response = curl_exec($ch);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+
+if ($httpCode === 200) {
+    $result = json_decode($response, true);
+    echo "Success: " . $result['message'] . "\n";
+    echo "Sent to: " . $result['to'] . "\n";
+} else {
+    echo "Error: " . $response . "\n";
+}
+?>
+```
+
+### JavaScript (Node.js)
+
+```javascript
+// Kirim pesan WhatsApp menggunakan Node.js dengan fetch
+
+const appKey = 'kodeappkeygeneratedkamu';
+
+async function sendWhatsAppMessage(number, message) {
+  try {
+    const response = await fetch('http://localhost:3000/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-App-Key': appKey
+      },
+      body: JSON.stringify({
+        number: number,
+        message: message
+      })
+    });
+
+    const data = await response.json();
+    
+    if (data.success) {
+      console.log('Success:', data.message);
+      console.log('Sent to:', data.to);
+    } else {
+      console.error('Error:', data.message);
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error sending message:', error);
+    throw error;
+  }
+}
+
+// Contoh penggunaan
+sendWhatsAppMessage('081234567890', 'Halo dari Node.js!');
+```
+
+### JavaScript (Browser)
+
+Perhatian: Sebaiknya tidak memanggil endpoint /send dari sisi client/browser karena appkey akan tampil ke pengguna!
+
+```javascript
+// Kirim pesan WhatsApp dari browser
+
+const appKey = 'kodeappkeygeneratedkamu';
+
+async function sendWhatsAppMessage(number, message) {
+  try {
+    const response = await fetch('http://localhost:3000/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-App-Key': appKey
+      },
+      body: JSON.stringify({
+        number: number,
+        message: message
+      })
+    });
+
+    const data = await response.json();
+    
+    if (data.success) {
+      alert('Pesan berhasil dikirim ke ' + data.to);
+    } else {
+      alert('Error: ' + data.message);
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error:', error);
+    alert('Gagal mengirim pesan');
+  }
+}
+
+// Contoh penggunaan dengan form HTML
+document.getElementById('sendBtn').addEventListener('click', function() {
+  const number = document.getElementById('phoneNumber').value;
+  const message = document.getElementById('message').value;
+  sendWhatsAppMessage(number, message);
+});
+```
+
+### JavaScript (Axios)
+
+```javascript
+// Kirim pesan WhatsApp menggunakan Axios
+
+const axios = require('axios');
+
+const appKey = 'kodeappkeygeneratedkamu';
+
+async function sendWhatsAppMessage(number, message) {
+  try {
+    const response = await axios.post('http://localhost:3000/send', {
+      number: number,
+      message: message
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-App-Key': appKey
+      }
+    });
+
+    console.log('Success:', response.data.message);
+    console.log('Sent to:', response.data.to);
+    return response.data;
+  } catch (error) {
+    if (error.response) {
+      console.error('Error:', error.response.data.message);
+    } else {
+      console.error('Error:', error.message);
+    }
+    throw error;
+  }
+}
+
+// Contoh penggunaan
+sendWhatsAppMessage('081234567890', 'Halo dari Axios!')
+  .then(data => console.log('Done:', data))
+  .catch(err => console.error('Failed:', err));
+```
 
 ## 🔒 Keamanan
 
