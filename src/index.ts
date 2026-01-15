@@ -6,12 +6,63 @@ import makeWASocket, {
 } from 'baileys'
 import { Boom } from '@hapi/boom'
 import * as QRCode from 'qrcode'
+import { randomBytes } from 'crypto'
 
 const app = new Hono()
 
 let sock: any = null
 let qrCodeData: string = ''
 let isConnected: boolean = false
+let currentAppKey: string = process.env.APP_KEY || ''
+
+// Function to generate random app key
+function generateAppKey(): string {
+  return randomBytes(32).toString('hex')
+}
+
+// Middleware untuk validasi app key
+async function validateAppKey(c: any, next: any) {
+  const appKey = c.req.header('X-App-Key') || c.req.query('app_key')
+  
+  if (!appKey || appKey !== currentAppKey) {
+    return c.json({ 
+      success: false, 
+      message: 'Invalid or missing app key' 
+    }, 401)
+  }
+  
+  await next()
+}
+
+// Middleware untuk HTTP Basic Auth
+async function validateBasicAuth(c: any, next: any) {
+  const authHeader = c.req.header('Authorization')
+  
+  if (!authHeader || !authHeader.startsWith('Basic ')) {
+    c.header('WWW-Authenticate', 'Basic realm="App Key Management"')
+    return c.json({ 
+      success: false, 
+      message: 'Authentication required' 
+    }, 401)
+  }
+  
+  const base64Credentials = authHeader.substring(6)
+  const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8')
+  const [username, password] = credentials.split(':')
+  
+  const validUsername = process.env.HTTP_AUTH_USERNAME || 'admin'
+  const validPassword = process.env.HTTP_AUTH_PASSWORD || 'admin'
+  
+  if (username !== validUsername || password !== validPassword) {
+    c.header('WWW-Authenticate', 'Basic realm="App Key Management"')
+    return c.json({ 
+      success: false, 
+      message: 'Invalid credentials' 
+    }, 401)
+  }
+  
+  await next()
+}
 
 async function connectToWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys')
@@ -47,6 +98,29 @@ async function connectToWhatsApp() {
       qrCodeData = ''
     }
   })
+}
+
+// Function to ensure WhatsApp connection is active
+async function ensureConnection(): Promise<boolean> {
+  if (isConnected && sock) {
+    return true
+  }
+  
+  console.log('Connection not active, attempting to reconnect...')
+  
+  // Try to reconnect if socket exists but not connected
+  if (!sock) {
+    await connectToWhatsApp()
+    
+    // Wait for connection with timeout
+    let attempts = 0
+    while (!isConnected && attempts < 30) {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      attempts++
+    }
+  }
+  
+  return isConnected
 }
 
 app.get('/', (c) => {
@@ -122,8 +196,30 @@ app.get('/qr', async (c) => {
   }
 })
 
+// Generate or regenerate app key endpoint
+app.get('/appkey', validateBasicAuth, async (c) => {
+  try {
+    const newAppKey = generateAppKey()
+    currentAppKey = newAppKey
+    
+    return c.json({
+      success: true,
+      message: 'App key berhasil di-generate',
+      app_key: newAppKey,
+      note: 'Simpan app key ini dengan aman. Gunakan di header X-App-Key atau query parameter app_key'
+    })
+  } catch (error) {
+    console.error('Error generating app key:', error)
+    return c.json({ 
+      success: false, 
+      message: 'Gagal generate app key',
+      error: String(error)
+    }, 500)
+  }
+})
+
 // Send message endpoint
-app.post('/send', async (c) => {
+app.post('/send', validateAppKey, async (c) => {
   try {
     const { number, message } = await c.req.json()
 
@@ -134,7 +230,10 @@ app.post('/send', async (c) => {
       }, 400)
     }
 
-    if (!isConnected || !sock) {
+    // Ensure connection is active, reconnect if needed
+    const connectionReady = await ensureConnection()
+    
+    if (!connectionReady) {
       return c.json({ 
         success: false, 
         message: 'WhatsApp belum terkoneksi. Silakan scan QR code terlebih dahulu di /qr' 
@@ -173,6 +272,6 @@ app.post('/send', async (c) => {
 })
 
 export default {
-  port: 3001,
+  port: parseInt(process.env.PORT || '3001'),
   fetch: app.fetch
 }

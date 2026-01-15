@@ -1,0 +1,8 @@
+PORT=3001
+
+# App Key untuk autentikasi API
+APP_KEY=your-app-key-here
+
+# HTTP Basic Auth untuk endpoint /appkey
+HTTP_AUTH_USERNAME=your-username
+HTTP_AUTH_PASSWORD=yourpassword
