@@ -29,6 +29,7 @@ interface SessionData {
 const sessions = new Map<string, SessionData>()
 const SESSIONS_REGISTRY_FILE = 'sessions_registry.json'
 const AUTH_BASE_DIR = 'auth_info_baileys/sessions'
+const MAX_SESSIONS = parseInt(process.env.MAX_SESSIONS || '15')
 
 let currentAppKey: string = process.env.APP_KEY || ''
 
@@ -40,6 +41,17 @@ if (!existsSync(AUTH_BASE_DIR)) {
 // Function to generate random app key
 function generateAppKey(): string {
   return randomBytes(32).toString('hex')
+}
+
+// Get process memory usage
+function getProcessMemory() {
+  const usage = process.memoryUsage()
+  return {
+    rss: Math.round(usage.rss / 1024 / 1024), // MB
+    heapUsed: Math.round(usage.heapUsed / 1024 / 1024), // MB
+    heapTotal: Math.round(usage.heapTotal / 1024 / 1024), // MB
+    external: Math.round(usage.external / 1024 / 1024) // MB
+  }
 }
 
 // Validate session name (lowercase letters and numbers only)
@@ -85,9 +97,15 @@ function loadSessionsRegistry() {
           })
         }
       }
+    } else {
+      // Create empty registry file if it doesn't exist
+      writeFileSync(SESSIONS_REGISTRY_FILE, JSON.stringify([], null, 2))
+      console.log('Created new sessions registry file')
     }
   } catch (error) {
     console.error('Error loading sessions registry:', error)
+    // Create empty registry file on error
+    writeFileSync(SESSIONS_REGISTRY_FILE, JSON.stringify([], null, 2))
   }
 }
 
@@ -307,7 +325,14 @@ app.get('/', (c) => {
   try {
     const htmlPath = join(process.cwd(), 'public', 'index.html')
     if (existsSync(htmlPath)) {
-      const htmlContent = readFileSync(htmlPath, 'utf-8')
+      let htmlContent = readFileSync(htmlPath, 'utf-8')
+      
+      // Inject actual values into HTML
+      const serverUrl = `${c.req.header('x-forwarded-proto') || 'http'}://${c.req.header('host') || 'localhost:8990'}`
+      htmlContent = htmlContent.replace(/YOUR_APP_KEY/g, currentAppKey || 'YOUR_APP_KEY')
+      htmlContent = htmlContent.replace(/your-server:8990/g, c.req.header('host') || 'localhost:8990')
+      htmlContent = htmlContent.replace(/yoursession/g, 'yoursession')
+      
       return c.html(htmlContent)
     } else {
       return c.json({ 
@@ -359,6 +384,16 @@ app.post('/sessions/:name', validateBasicAuth, async (c) => {
       success: false,
       message: 'Session already exists'
     }, 409)
+  }
+  
+  // Check maximum sessions limit
+  if (sessions.size >= MAX_SESSIONS) {
+    return c.json({
+      success: false,
+      message: `Maximum sessions limit (${MAX_SESSIONS}) reached. Please delete unused sessions first.`,
+      current_sessions: sessions.size,
+      max_sessions: MAX_SESSIONS
+    }, 429)
   }
   
   try {
@@ -650,6 +685,32 @@ app.get('/generate-appkey', async (c) => {
       error: String(error)
     }, 500)
   }
+})
+
+// Health check endpoint
+app.get('/health', (c) => {
+  const memory = getProcessMemory()
+  const sessionStats = {
+    total: sessions.size,
+    connected: Array.from(sessions.values()).filter(s => s.isConnected).length,
+    disconnected: Array.from(sessions.values()).filter(s => !s.isConnected).length,
+    reconnecting: Array.from(sessions.values()).filter(s => s.isReconnecting).length,
+    max_sessions: MAX_SESSIONS,
+    available_slots: MAX_SESSIONS - sessions.size
+  }
+  
+  return c.json({
+    success: true,
+    status: 'running',
+    uptime: process.uptime(),
+    memory: {
+      rss_mb: memory.rss,
+      heap_used_mb: memory.heapUsed,
+      heap_total_mb: memory.heapTotal,
+      external_mb: memory.external
+    },
+    sessions: sessionStats
+  })
 })
 
 export default {

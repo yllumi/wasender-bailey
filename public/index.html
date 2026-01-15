@@ -14,7 +14,7 @@
       body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
           Oxygen, Ubuntu, Cantarell, sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #8DC6FC 0%, #DCC6FF 100%);
         min-height: 100vh;
         padding: 20px;
       }
@@ -42,6 +42,36 @@
 
       .header p {
         color: #666;
+      }
+
+      .health-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-top: 20px;
+      }
+
+      .stat-item {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 15px;
+        border-radius: 10px;
+        color: white;
+      }
+
+      .stat-label {
+        font-size: 12px;
+        opacity: 0.9;
+        margin-bottom: 5px;
+      }
+
+      .stat-value {
+        font-size: 24px;
+        font-weight: bold;
+      }
+
+      .stat-unit {
+        font-size: 14px;
+        opacity: 0.8;
       }
 
       .card {
@@ -267,6 +297,127 @@
         margin-bottom: 20px;
         opacity: 0.5;
       }
+
+      .code-section {
+        margin-top: 20px;
+      }
+
+      .tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #e0e0e0;
+      }
+
+      .tab-btn {
+        padding: 10px 20px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight:   600;
+        color: #666;
+        border-bottom: 3px solid transparent;
+        transition: all 0.3s;
+      }
+
+      .tab-btn:hover {
+        color: #25d366;
+      }
+
+      .tab-btn.active {
+        color: #25d366;
+        border-bottom-color: #25d366;
+      }
+
+      .tab-content {
+        display: none;
+      }
+
+      .tab-content.active {
+        display: block;
+      }
+
+      .code-block {
+        position: relative;
+        background: #1e1e1e;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 15px 0;
+        overflow-x: auto;
+      }
+
+      .code-block pre {
+        margin: 0;
+        color: #d4d4d4;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .code-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+
+      .code-label {
+        color: #888;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .copy-btn {
+        padding: 6px 12px;
+        background: #25d366;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 12px;
+        transition: all 0.2s;
+      }
+
+      .copy-btn:hover {
+        background: #1ea952;
+      }
+
+      .copy-btn:active {
+        transform: scale(0.95);
+      }
+
+      .api-endpoint {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 15px 0;
+        border-left: 4px solid #25d366;
+      }
+
+      .api-endpoint code {
+        color: #e83e8c;
+        font-weight: 600;
+      }
+
+      .param-list {
+        margin: 15px 0;
+        padding-left: 20px;
+      }
+
+      .param-list li {
+        margin-bottom: 8px;
+        color: #666;
+      }
+
+      .param-list code {
+        background: #f8f9fa;
+        padding: 2px 6px;
+        border-radius: 3px;
+        color: #e83e8c;
+        font-size: 13px;
+      }
     </style>
   </head>
   <body>
@@ -277,6 +428,29 @@
           WhatsApp Session Manager
         </h1>
         <p>Manage multiple WhatsApp sessions easily</p>
+        
+        <div class="health-stats" id="healthStats">
+          <div class="stat-item">
+            <div class="stat-label">Memory Usage</div>
+            <div class="stat-value" id="memoryUsage">-</div>
+            <div class="stat-unit">MB</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Active Sessions</div>
+            <div class="stat-value" id="activeSessions">-</div>
+            <div class="stat-unit">/ <span id="maxSessions">-</span></div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Connected</div>
+            <div class="stat-value" id="connectedSessions">-</div>
+            <div class="stat-unit">sessions</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Uptime</div>
+            <div class="stat-value" id="uptime">-</div>
+            <div class="stat-unit">hours</div>
+          </div>
+        </div>
       </div>
 
       <div id="alertContainer"></div>
@@ -309,11 +483,177 @@
         </div>
         <div id="sessionsContainer"></div>
       </div>
+
+      <div class="card">
+        <h2>📨 How to Send Messages</h2>
+        <p style="color: #666; margin-bottom: 20px;">
+          Use your session to send WhatsApp messages via API
+        </p>
+
+        <div class="api-endpoint">
+          <strong>Endpoint:</strong> <code>POST /{session_name}/send</code>
+        </div>
+
+        <div style="margin: 15px 0;">
+          <strong>Parameters:</strong>
+          <ul class="param-list">
+            <li><code>app_key</code> - Your API key (query parameter or X-App-Key header)</li>
+            <li><code>number</code> - Recipient phone number (e.g., 628986818780)</li>
+            <li><code>message</code> - Text message to send</li>
+          </ul>
+        </div>
+
+        <div class="tabs">
+          <button class="tab-btn active" onclick="switchTab('curl')">cURL</button>
+          <button class="tab-btn" onclick="switchTab('php')">PHP</button>
+          <button class="tab-btn" onclick="switchTab('javascript')">JavaScript</button>
+        </div>
+
+        <div id="curl" class="tab-content active">
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-label">Bash / Terminal</span>
+              <button class="copy-btn" onclick="copyCode('curl-code')">Copy</button>
+            </div>
+            <pre id="curl-code">curl -X POST "http://your-server:8990/yoursession/send?app_key=YOUR_APP_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "number": "628986818780",
+    "message": "Hello from WhatsApp API!"
+  }'</pre>
+          </div>
+        </div>
+
+        <div id="php" class="tab-content">
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-label">PHP</span>
+              <button class="copy-btn" onclick="copyCode('php-code')">Copy</button>
+            </div>
+            <pre id="php-code">&lt;?php
+$session = 'yoursession';
+$url = "http://your-server:8990/{$session}/send?app_key=YOUR_APP_KEY";
+
+$data = [
+    'number' => '628986818780',
+    'message' => 'Hello from WhatsApp API!'
+];
+
+$options = [
+    'http' => [
+        'header'  => "Content-Type: application/json\r\n",
+        'method'  => 'POST',
+        'content' => json_encode($data)
+    ]
+];
+
+$context  = stream_context_create($options);
+$result = file_get_contents($url, false, $context);
+
+if ($result === FALSE) {
+    die('Error sending message');
+}
+
+$response = json_decode($result, true);
+print_r($response);
+?&gt;</pre>
+          </div>
+        </div>
+
+        <div id="javascript" class="tab-content">
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-label">JavaScript (Fetch API)</span>
+              <button class="copy-btn" onclick="copyCode('js-code')">Copy</button>
+            </div>
+            <pre id="js-code">async function sendWhatsAppMessage(sessionName, phoneNumber, message) {
+  const url = `http://your-server:8990/${sessionName}/send?app_key=YOUR_APP_KEY`;
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        number: phoneNumber,
+        message: message
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      console.log('Message sent successfully!');
+      return data;
+    } else {
+      console.error('Error:', data.message);
+      throw new Error(data.message);
+    }
+  } catch (error) {
+    console.error('Failed to send message:', error);
+    throw error;
+  }
+}
+
+// Usage example
+sendWhatsAppMessage('yoursession', '628986818780', 'Hello from WhatsApp API!')
+  .then(result => console.log('Success:', result))
+  .catch(error => console.error('Error:', error));</pre>
+          </div>
+        </div>
+
+        <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
+          <strong>⚠️ Important:</strong>
+          <ul style="margin-top: 10px; padding-left: 20px; color: #856404;">
+            <li>Replace <code>yoursession</code> with your session name</li>
+            <li>Phone numbers should include country code (e.g., 62 for Indonesia)</li>
+          </ul>
+        </div>
+      </div>
     </div>
 
     <script>
       const API_BASE = window.location.origin;
       let authToken = "";
+
+      function switchTab(tabName) {
+        // Hide all tabs
+        document.querySelectorAll('.tab-content').forEach(tab => {
+          tab.classList.remove('active');
+        });
+        
+        // Remove active class from all buttons
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+          btn.classList.remove('active');
+        });
+        
+        // Show selected tab
+        document.getElementById(tabName).classList.add('active');
+        
+        // Add active class to clicked button
+        event.target.classList.add('active');
+      }
+
+      function copyCode(elementId) {
+        const codeElement = document.getElementById(elementId);
+        const text = codeElement.textContent;
+        
+        navigator.clipboard.writeText(text).then(() => {
+          const btn = event.target;
+          const originalText = btn.textContent;
+          btn.textContent = '✓ Copied!';
+          btn.style.background = '#28a745';
+          
+          setTimeout(() => {
+            btn.textContent = originalText;
+            btn.style.background = '#25d366';
+          }, 2000);
+        }).catch(err => {
+          console.error('Failed to copy:', err);
+          alert('Failed to copy code');
+        });
+      }
 
       // Prompt for credentials on page load
       function getCredentials() {
@@ -336,6 +676,26 @@
         setTimeout(() => {
           alert.remove();
         }, 5000);
+      }
+
+      async function fetchHealth() {
+        try {
+          const response = await fetch(`${API_BASE}/health`);
+          if (!response.ok) return;
+          
+          const data = await response.json();
+          
+          // Update health stats
+          document.getElementById('memoryUsage').textContent = data.memory.rss_mb;
+          document.getElementById('activeSessions').textContent = data.sessions.total;
+          document.getElementById('maxSessions').textContent = data.sessions.max_sessions;
+          document.getElementById('connectedSessions').textContent = data.sessions.connected;
+          
+          const uptimeHours = (data.uptime / 3600).toFixed(1);
+          document.getElementById('uptime').textContent = uptimeHours;
+        } catch (error) {
+          console.error('Error fetching health:', error);
+        }
       }
 
       async function fetchSessions() {
@@ -517,8 +877,10 @@
       // Initialize
       if (getCredentials()) {
         fetchSessions();
+        fetchHealth();
         // Auto-refresh every 10 seconds
         setInterval(fetchSessions, 10000);
+        setInterval(fetchHealth, 5000);
       } else {
         showAlert("Authentication required", "error");
       }

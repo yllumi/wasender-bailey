@@ -6,3 +6,6 @@ APP_KEY=your-app-key-here
 # HTTP Basic Auth untuk endpoint /appkey
 HTTP_AUTH_USERNAME=your-username
 HTTP_AUTH_PASSWORD=yourpassword
+
+# Session Limits
+MAX_SESSIONS=15

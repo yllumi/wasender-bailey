@@ -1,16 +1,20 @@
-# WhatsApp API with Baileys
+# WhatsApp Multi-Session API with Baileys
 
-WhatsApp API sederhana menggunakan Hono framework dan Baileys library untuk mengirim pesan WhatsApp melalui HTTP endpoint.
+WhatsApp API dengan dukungan multi-session menggunakan Hono framework dan Baileys library untuk mengirim pesan WhatsApp melalui HTTP endpoint.
 
 ## 🚀 Fitur
 
+- ✅ **Multi-session support** - Kelola banyak akun WhatsApp dalam satu aplikasi
+- ✅ **Web Management Interface** - Dashboard untuk create, view, dan delete sessions
 - ✅ Koneksi WhatsApp via QR Code dengan tampilan web
 - ✅ Kirim pesan WhatsApp via API
 - ✅ Auto-reconnect jika koneksi terputus
-- ✅ Session tersimpan (tidak perlu scan QR berulang)
+- ✅ Session persistence (tidak perlu scan QR berulang)
 - ✅ API Key authentication
-- ✅ HTTP Basic Auth untuk management endpoint
+- ✅ HTTP Basic Auth untuk management endpoints
 - ✅ Auto-format nomor telepon Indonesia
+- ✅ Health monitoring (memory, uptime, sessions)
+- ✅ Session limits untuk resource management
 
 ## 📋 Prerequisites
 
@@ -26,22 +30,25 @@ WhatsApp API sederhana menggunakan Hono framework dan Baileys library untuk meng
 bun install
 ```
 
-3. Copy dan edit file environment:
-```bash
-cp env .env
-```
-
-4. Edit file `.env` sesuai kebutuhan:
+3. Buat file `.env`:
 ```env
-PORT=3000
+PORT=8990
 
 # App Key untuk autentikasi API
 APP_KEY=your-secret-app-key-here
 
-# HTTP Basic Auth untuk akses endpoint /appkey
+# HTTP Basic Auth untuk akses management endpoints
 HTTP_AUTH_USERNAME=admin
 HTTP_AUTH_PASSWORD=your-secure-password
+
+# Session Limits (sesuaikan dengan RAM server)
+MAX_SESSIONS=15
 ```
+
+**Rekomendasi MAX_SESSIONS berdasarkan RAM:**
+- 1 GB RAM: 10-15 sessions
+- 2 GB RAM: 30-40 sessions
+- 4 GB RAM: 80-100 sessions
 
 ## 🚀 Menjalankan Aplikasi
 
@@ -49,50 +56,81 @@ HTTP_AUTH_PASSWORD=your-secure-password
 bun run src/index.ts
 ```
 
-Server akan berjalan di `http://localhost:3000` (atau port yang Anda set di `.env`)
+Server akan berjalan di `http://localhost:8990` (atau port yang Anda set di `.env`)
+
+## 🌐 Web Management Interface
+
+Buka browser dan akses: `http://localhost:8990`
+
+Interface ini memungkinkan Anda untuk:
+- ✅ Melihat semua sessions yang aktif
+- ✅ Monitor status koneksi setiap session
+- ✅ Create session baru
+- ✅ Hapus session yang tidak digunakan
+- ✅ Akses QR code untuk setiap session
+- ✅ Monitor health status (memory, uptime, sessions)
+- ✅ Lihat dokumentasi API dengan contoh kode
+
+**Authentication:** Masukkan username dan password dari `.env` saat diminta.
 
 ## 📱 Menghubungkan WhatsApp
 
-1. Buka browser dan akses: `http://localhost:3000/qr`
-2. Scan QR code dengan WhatsApp di ponsel Anda:
-   - Buka WhatsApp → **Settings** → **Linked Devices** → **Link a Device**
-3. Scan QR code yang muncul di browser
-4. Tunggu hingga status berubah menjadi "WhatsApp Sudah Terkoneksi"
+### Cara 1: Melalui Web Interface
 
-**Note:** Session akan tersimpan di folder `auth_info_baileys`, jadi Anda tidak perlu scan QR code setiap kali restart aplikasi.
+1. Buka `http://localhost:8990`
+2. Login dengan credentials dari `.env`
+3. Buat session baru (misal: `akun1`, `customer01`)
+4. Klik tombol "📱 QR Code" pada session yang dibuat
+5. Scan QR code dengan WhatsApp di ponsel Anda
+6. Tunggu hingga status berubah menjadi "Connected"
+
+### Cara 2: Langsung ke URL QR
+
+1. Buat session terlebih dahulu (lihat API Endpoints)
+2. Akses: `http://localhost:8990/{session_name}/qr`
+3. Scan QR code yang muncul dengan WhatsApp:
+   - Buka WhatsApp → **Settings** → **Linked Devices** → **Link a Device**
+4. Tunggu hingga status berubah menjadi "WhatsApp Connected"
+
+**Note:** Session akan tersimpan di folder `auth_info_baileys/sessions/{session_name}`, jadi Anda tidak perlu scan QR code setiap kali restart aplikasi.
+
+## 🎯 Session Names
+
+Session name harus memenuhi kriteria:
+- ✅ Hanya lowercase letters (a-z)
+- ✅ Hanya angka (0-9)
+- ❌ Tidak boleh ada spasi, underscore, atau karakter spesial
+- ✅ Contoh valid: `akun1`, `customer01`, `tokoofficial`
+- ❌ Contoh invalid: `Akun1`, `toko_official`, `akun-1`
 
 ## 🔑 Setup App Key
 
 ### Generate App Key Baru
 
-Generate app key baru untuk disimpan di file `.env`:
-
 ```bash
-curl -X GET http://localhost:3000/generate-appkey
+curl http://localhost:8990/generate-appkey
 ```
 
 Response:
 ```json
 {
   "success": true,
-  "message": "App key berhasil digenerate. Simpan app key di .env.",
-  "app_key": "kodeappkeygeneratedkamu"
+  "message": "App key generated successfully. Save it to .env file.",
+  "app_key": "b5a4e372a4ec0c15683ff08e132e7042ebd5b363d338cfd864ba6f826d95dd90"
 }
 ```
 
 **Simpan App Key** tersebut ke file `.env`:
 ```env
-APP_KEY=kodeappkeygeneratedkamu
+APP_KEY=b5a4e372a4ec0c15683ff08e132e7042ebd5b363d338cfd864ba6f826d95dd90
 ```
-
-Kamu bisa membuat random string sendiri untuk appkey, pastikan tidak terlalu mudah ditebak.
 
 ### Cek App Key yang Terdaftar
 
-Jika lupa app key, Anda bisa cek tanpa perlu masuk ke server:
+Jika lupa app key, Anda bisa cek dengan HTTP Basic Auth:
 
 ```bash
-curl -X GET http://localhost:3000/appkey \
+curl http://localhost:8990/appkey \
   -u admin:your-secure-password
 ```
 
@@ -100,49 +138,63 @@ Response:
 ```json
 {
   "success": true,
-  "message": "Berikut app key Anda: ",
-  "app_key": "kodeappkeygeneratedkamu"
+  "message": "Your current app key:",
+  "app_key": "b5a4e372a4ec0c15683ff08e132e7042ebd5b363d338cfd864ba6f826d95dd90"
 }
 ```
 
 ## 📡 API Endpoints
 
-### 1. GET `/qr`
-Menampilkan QR code untuk menghubungkan WhatsApp.
+### 1. GET `/`
+Web Management Interface untuk kelola sessions.
 
-**Response:** HTML page dengan QR code
+**Authentication:** HTTP Basic Auth
 
-**Akses via browser:** `http://localhost:3000/qr`
+**Response:** HTML dashboard
 
 ---
 
-### 2. GET `/generate-appkey`
-Generate app key baru untuk disimpan di file `.env`.
+### 2. GET `/health`
+Health check dan monitoring aplikasi.
 
 **Request:**
 ```bash
-curl -X GET http://localhost:3000/generate-appkey
+curl http://localhost:8990/health
 ```
 
 **Response:**
 ```json
 {
   "success": true,
-  "message": "App key berhasil digenerate. Simpan app key di .env.",
-  "app_key": "abc123..."
+  "status": "running",
+  "uptime": 3600.5,
+  "memory": {
+    "rss_mb": 145,
+    "heap_used_mb": 78,
+    "heap_total_mb": 120,
+    "external_mb": 5
+  },
+  "sessions": {
+    "total": 3,
+    "connected": 2,
+    "disconnected": 1,
+    "reconnecting": 0,
+    "max_sessions": 15,
+    "available_slots": 12
+  }
 }
 ```
 
 ---
 
-### 4. GET `/appkey`
-Mengecek app key yang sudah terdaftar di `.env`. Berguna jika lupa app key tanpa perlu masuk ke server.
+### 3. GET `/sessions`
+List semua sessions yang terdaftar.
 
-**Authentication:** HTTP Basic Auth dengan username dan password yang sudah didaftarkan di .env
+**Authentication:** HTTP Basic Auth
 
 **Request:**
 ```bash
-curl -X GET http://localhost:3000/appkey \
+curl http://localhost:8990/sessions \
   -u admin:password
 ```
 
@@ -150,15 +202,95 @@ curl -X GET http://localhost:3000/appkey \
 ```json
 {
   "success": true,
-  "message": "Berikut app key Anda: ",
-  "app_key": "abc123..."
+  "count": 2,
+  "sessions": [
+    {
+      "name": "akun1",
+      "isConnected": true,
+      "phoneNumber": "628123456789",
+      "createdAt": "2026-01-15T10:00:00.000Z",
+      "lastActivity": "2026-01-15T11:30:00.000Z"
+    },
+    {
+      "name": "customer01",
+      "isConnected": false,
+      "phoneNumber": "Not connected yet",
+      "createdAt": "2026-01-15T11:00:00.000Z",
+      "lastActivity": "2026-01-15T11:00:00.000Z"
+    }
+  ]
 }
 ```
 
 ---
 
-### 3. POST `/send`
-Mengirim pesan WhatsApp ke nomor tujuan.
+### 4. POST `/sessions/:name`
+Membuat session baru.
+
+**Authentication:** HTTP Basic Auth
+
+**Request:**
+```bash
+curl -X POST http://localhost:8990/sessions/akun1 \
+  -u admin:password
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Session created successfully",
+  "session": {
+    "name": "akun1",
+    "qr_url": "/akun1/qr"
+  }
+}
+```
+
+**Error Response (Session Limit Reached):**
+```json
+{
+  "success": false,
+  "message": "Maximum sessions limit (15) reached. Please delete unused sessions first.",
+  "current_sessions": 15,
+  "max_sessions": 15
+}
+```
+
+---
+
+### 5. DELETE `/:session_name`
+Menghapus session.
+
+**Authentication:** HTTP Basic Auth
+
+**Request:**
+```bash
+curl -X DELETE http://localhost:8990/akun1 \
+  -u admin:password
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Session \"akun1\" deleted successfully"
+}
+```
+
+---
+
+### 6. GET `/:session_name/qr`
+Menampilkan QR code untuk menghubungkan WhatsApp pada session tertentu.
+
+**Response:** HTML page dengan QR code
+
+**Akses via browser:** `http://localhost:8990/akun1/qr`
+
+---
+
+### 7. POST `/:session_name/send`
+Mengirim pesan WhatsApp melalui session tertentu.
 
 **Authentication:** App Key (via header atau query parameter)
 
@@ -170,24 +302,13 @@ Mengirim pesan WhatsApp ke nomor tujuan.
 - `Content-Type: application/json`
 - `X-App-Key: your-app-key` (atau gunakan query parameter)
 
-**Request Example (dengan Header):**
+**Request Example:**
 ```bash
-curl -X POST http://localhost:3000/send \
-  -H "Content-Type: application/json" \
-  -H "X-App-Key: kodeappkeygeneratedkamu" \
-  -d '{
-    "number": "081234567890",
-    "message": "Halo dari WhatsApp API!"
-  }'
-```
-
-**Request Example (dengan Query Parameter):**
-```bash
-curl -X POST "http://localhost:3000/send?app_key=YOUR_APP_KEY" \
+curl -X POST "http://localhost:8990/akun1/send?app_key=YOUR_APP_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "number": "628986818780",
-    "message": "Halo dari WhatsApp API!"
+    "message": "Hello from WhatsApp API!"
   }'
 ```
 
@@ -195,7 +316,8 @@ curl -X POST "http://localhost:3000/send?app_key=YOUR_APP_KEY" \
 ```json
 {
   "success": true,
-  "message": "Pesan berhasil dikirim",
+  "message": "Message sent successfully",
+  "session": "akun1",
   "to": "628986818780"
 }
 ```
@@ -204,7 +326,48 @@ curl -X POST "http://localhost:3000/send?app_key=YOUR_APP_KEY" \
 ```json
 {
   "success": false,
-  "message": "Invalid or missing app key"
+  "message": "Session \"akun1\" is not connected. Please scan QR code first at /akun1/qr or wait for reconnection."
+}
+```
+
+---
+
+### 8. GET `/generate-appkey`
+Generate app key baru.
+
+**Request:**
+```bash
+curl http://localhost:8990/generate-appkey
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "App key generated successfully. Save it to .env file.",
+  "app_key": "b5a4e372a4ec0c15683ff08e132e7042ebd5b363d338cfd864ba6f826d95dd90"
+}
+```
+
+---
+
+### 9. GET `/appkey`
+Cek app key yang terdaftar.
+
+**Authentication:** HTTP Basic Auth
+
+**Request:**
+```bash
+curl http://localhost:8990/appkey \
+  -u admin:password
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Your current app key:",
+  "app_key": "b5a4e372a4ec0c15683ff08e132e7042ebd5b363d338cfd864ba6f826d95dd90"
 }
 ```
 
@@ -223,22 +386,16 @@ Untuk nomor internasional, gunakan format lengkap dengan kode negara.
 
 ```php
 <?php
-// Kirim pesan WhatsApp menggunakan PHP
-
-$url = 'http://localhost:3000/send';
-$appKey = 'kodeappkeygeneratedkamu';
+$url = 'http://localhost:8990/akun1/send?app_key=YOUR_APP_KEY';
 
 $data = [
-    'number' => '081234567890',
-    'message' => 'Halo dari PHP!'
+    'number' => '628986818780',
+    'message' => 'Hello from WhatsApp API!'
 ];
 
 $options = [
     'http' => [
-        'header'  => [
-            "Content-Type: application/json",
-            "X-App-Key: $appKey"
-        ],
+        'header'  => "Content-Type: application/json\r\n",
         'method'  => 'POST',
         'content' => json_encode($data)
     ]
@@ -248,221 +405,130 @@ $context  = stream_context_create($options);
 $result = file_get_contents($url, false, $context);
 
 if ($result === FALSE) {
-    echo "Error sending message\n";
-} else {
-    $response = json_decode($result, true);
-    echo "Success: " . $response['message'] . "\n";
-    echo "Sent to: " . $response['to'] . "\n";
+    die('Error sending message');
 }
+
+$response = json_decode($result, true);
+print_r($response);
 ?>
 ```
 
-### PHP dengan cURL
-
-```php
-<?php
-// Kirim pesan WhatsApp menggunakan cURL
-
-$url = 'http://localhost:3000/send';
-$appKey = 'kodeappkeygeneratedkamu';
-
-$data = [
-    'number' => '081234567890',
-    'message' => 'Halo dari PHP cURL!'
-];
-
-$ch = curl_init($url);
-curl_setopt($ch, CURLOPT_POST, 1);
-curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    'Content-Type: application/json',
-    "X-App-Key: $appKey"
-]);
-
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
-if ($httpCode === 200) {
-    $result = json_decode($response, true);
-    echo "Success: " . $result['message'] . "\n";
-    echo "Sent to: " . $result['to'] . "\n";
-} else {
-    echo "Error: " . $response . "\n";
-}
-?>
-```
-
-### JavaScript (Node.js)
+### JavaScript (Fetch API)
 
 ```javascript
-// Kirim pesan WhatsApp menggunakan Node.js dengan fetch
-
-const appKey = 'kodeappkeygeneratedkamu';
-
-async function sendWhatsAppMessage(number, message) {
+async function sendWhatsAppMessage(sessionName, phoneNumber, message) {
+  const url = `http://localhost:8990/${sessionName}/send?app_key=YOUR_APP_KEY`;
+  
   try {
-    const response = await fetch('http://localhost:3000/send', {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'X-App-Key': appKey
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        number: number,
+        number: phoneNumber,
         message: message
       })
     });
-
+    
     const data = await response.json();
     
     if (data.success) {
-      console.log('Success:', data.message);
-      console.log('Sent to:', data.to);
+      console.log('Message sent successfully!');
+      return data;
     } else {
       console.error('Error:', data.message);
+      throw new Error(data.message);
     }
-    
-    return data;
   } catch (error) {
-    console.error('Error sending message:', error);
+    console.error('Failed to send message:', error);
     throw error;
   }
 }
 
-// Contoh penggunaan
-sendWhatsAppMessage('081234567890', 'Halo dari Node.js!');
+// Usage example
+sendWhatsAppMessage('akun1', '628986818780', 'Hello from WhatsApp API!')
+  .then(result => console.log('Success:', result))
+  .catch(error => console.error('Error:', error));
 ```
 
-### JavaScript (Browser)
+### Python
 
-Perhatian: Sebaiknya tidak memanggil endpoint /send dari sisi client/browser karena appkey akan tampil ke pengguna!
+```python
+import requests
+import json
 
-```javascript
-// Kirim pesan WhatsApp dari browser
+url = 'http://localhost:8990/akun1/send'
+params = {'app_key': 'YOUR_APP_KEY'}
+headers = {'Content-Type': 'application/json'}
 
-const appKey = 'kodeappkeygeneratedkamu';
-
-async function sendWhatsAppMessage(number, message) {
-  try {
-    const response = await fetch('http://localhost:3000/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-App-Key': appKey
-      },
-      body: JSON.stringify({
-        number: number,
-        message: message
-      })
-    });
-
-    const data = await response.json();
-    
-    if (data.success) {
-      alert('Pesan berhasil dikirim ke ' + data.to);
-    } else {
-      alert('Error: ' + data.message);
-    }
-    
-    return data;
-  } catch (error) {
-    console.error('Error:', error);
-    alert('Gagal mengirim pesan');
-  }
+data = {
+    'number': '628986818780',
+    'message': 'Hello from WhatsApp API!'
 }
 
-// Contoh penggunaan dengan form HTML
-document.getElementById('sendBtn').addEventListener('click', function() {
-  const number = document.getElementById('phoneNumber').value;
-  const message = document.getElementById('message').value;
-  sendWhatsAppMessage(number, message);
-});
+response = requests.post(url, params=params, headers=headers, json=data)
+result = response.json()
+
+if result['success']:
+    print('Message sent successfully!')
+    print(f"Sent to: {result['to']}")
+else:
+    print(f"Error: {result['message']}")
 ```
 
-### JavaScript (Axios)
-
-```javascript
-// Kirim pesan WhatsApp menggunakan Axios
-
-const axios = require('axios');
-
-const appKey = 'kodeappkeygeneratedkamu';
-
-async function sendWhatsAppMessage(number, message) {
-  try {
-    const response = await axios.post('http://localhost:3000/send', {
-      number: number,
-      message: message
-    }, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-App-Key': appKey
-      }
-    });
-
-    console.log('Success:', response.data.message);
-    console.log('Sent to:', response.data.to);
-    return response.data;
-  } catch (error) {
-    if (error.response) {
-      console.error('Error:', error.response.data.message);
-    } else {
-      console.error('Error:', error.message);
-    }
-    throw error;
-  }
-}
-
-// Contoh penggunaan
-sendWhatsAppMessage('081234567890', 'Halo dari Axios!')
-  .then(data => console.log('Done:', data))
-  .catch(err => console.error('Failed:', err));
-```
+**Note:** Ganti `YOUR_APP_KEY` dengan app key dari `.env` dan `akun1` dengan nama session Anda.
 
 ## 🔒 Keamanan
 
 1. **Jangan commit file `.env`** ke repository (sudah ada di `.gitignore`)
-2. **Backup folder `auth_info_baileys`** - berisi kredensial WhatsApp
+2. **Backup folder `auth_info_baileys`** - berisi kredensial WhatsApp sessions
 3. **Jangan share App Key** kepada orang lain
 4. **Gunakan password yang kuat** untuk HTTP Basic Auth
 5. **Gunakan HTTPS** jika deploy ke production
-
-## 📂 Struktur Folder
-
-```
-wabaileys/
-├── src/
-│   └── index.ts          # Main application file
-├── auth_info_baileys/    # WhatsApp session files (auto-generated)
-├── .env                  # Environment variables
-├── .gitignore
-├── package.json
-├── tsconfig.json
-└── README.md
-```
+6. **Jangan expose `.env` file** ke publik
+7. **Monitor health endpoint** untuk resource usage
+8. **Set MAX_SESSIONS** sesuai kapasitas server
 
 ## 🐛 Troubleshooting
 
 ### QR Code tidak muncul
+- Pastikan session sudah dibuat via web interface atau API
 - Pastikan aplikasi sudah running
 - Refresh halaman browser
 - Cek log di terminal untuk error
 
+### Session tidak bisa dibuat
+- Cek apakah sudah mencapai MAX_SESSIONS limit
+- Pastikan nama session valid (lowercase + numbers only)
+- Cek memory availability di `/health` endpoint
+
 ### Pesan gagal terkirim
-- Pastikan sudah scan QR code di `/qr`
+- Pastikan session sudah connected (cek di web interface)
 - Pastikan App Key valid
-- Cek apakah nomor tujuan valid
+- Cek apakah nomor tujuan valid (gunakan format internasional)
 - Pastikan koneksi internet stabil
+- Cek status session di `/sessions` endpoint
 
 ### Session terputus setelah restart
-- Session otomatis akan reconnect jika folder `auth_info_baileys` masih ada
-- Jika tidak bisa reconnect, hapus folder `auth_info_baileys` dan scan QR ulang
+- Session otomatis akan reconnect jika folder `auth_info_baileys/sessions/{name}` masih ada
+- Jika tidak bisa reconnect, hapus session dan buat ulang
+- Cek log untuk melihat error reconnection
 
-### Error "Invalid credentials" saat akses `/appkey`
+### Error "Invalid credentials" saat akses web interface
 - Pastikan username dan password sesuai dengan `.env`
 - Restart aplikasi setelah edit `.env`
+
+### Error "Maximum sessions limit reached"
+- Hapus session yang tidak digunakan via web interface
+- Tingkatkan MAX_SESSIONS di `.env` (sesuaikan dengan RAM)
+- Restart aplikasi setelah edit `.env`
+
+### High memory usage
+- Monitor via `/health` endpoint
+- Kurangi jumlah active sessions
+- Hapus session yang tidak connected
+- Restart aplikasi untuk clear memory
 
 ## 📄 License
 
