@@ -85,6 +85,8 @@ Response:
 APP_KEY=kodeappkeygeneratedkamu
 ```
 
+Kamu bisa membuat random string sendiri untuk appkey, pastikan tidak terlalu mudah ditebak.
+
 ### Cek App Key yang Terdaftar
 
 Jika lupa app key, Anda bisa cek tanpa perlu masuk ke server:
@@ -117,8 +119,6 @@ Menampilkan QR code untuk menghubungkan WhatsApp.
 ### 2. GET `/generate-appkey`
 Generate app key baru untuk disimpan di file `.env`.
 
-**Authentication:** Tidak diperlukan
-
 **Request:**
 ```bash
 curl -X GET http://localhost:3000/generate-appkey
@@ -138,7 +138,7 @@ curl -X GET http://localhost:3000/generate-appkey
 ### 4. GET `/appkey`
 Mengecek app key yang sudah terdaftar di `.env`. Berguna jika lupa app key tanpa perlu masuk ke server.
 
-**Authentication:** HTTP Basic Auth
+**Authentication:** HTTP Basic Auth dengan username dan password yang sudah didaftarkan di .env
 
 **Request:**
 ```bash
