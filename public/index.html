@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WhatsApp Session Manager</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      .header {
+        background: white;
+        padding: 30px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      }
+
+      .header h1 {
+        color: #333;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .header p {
+        color: #666;
+      }
+
+      .card {
+        background: white;
+        padding: 30px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      }
+
+      .card h2 {
+        color: #333;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #25d366;
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      .form-group label {
+        display: block;
+        color: #333;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+
+      .form-group input {
+        width: 100%;
+        padding: 12px 15px;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        font-size: 16px;
+        transition: border-color 0.3s;
+      }
+
+      .form-group input:focus {
+        outline: none;
+        border-color: #25d366;
+      }
+
+      .form-group small {
+        color: #666;
+        font-size: 14px;
+        display: block;
+        margin-top: 5px;
+      }
+
+      .btn {
+        padding: 12px 24px;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        text-decoration: none;
+        display: inline-block;
+      }
+
+      .btn-primary {
+        background: #25d366;
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: #1ea952;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(37, 211, 102, 0.3);
+      }
+
+      .btn-danger {
+        background: #dc3545;
+        color: white;
+        padding: 8px 16px;
+        font-size: 14px;
+      }
+
+      .btn-danger:hover {
+        background: #c82333;
+      }
+
+      .btn-secondary {
+        background: #6c757d;
+        color: white;
+        padding: 8px 16px;
+        font-size: 14px;
+      }
+
+      .btn-secondary:hover {
+        background: #5a6268;
+      }
+
+      .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .sessions-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+      }
+
+      .session-card {
+        border: 2px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 20px;
+        transition: all 0.3s;
+      }
+
+      .session-card:hover {
+        border-color: #25d366;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+      }
+
+      .session-card.connected {
+        border-color: #25d366;
+        background: #f0fff4;
+      }
+
+      .session-card.disconnected {
+        border-color: #ffc107;
+        background: #fffbf0;
+      }
+
+      .session-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+      }
+
+      .session-name {
+        font-size: 20px;
+        font-weight: 700;
+        color: #333;
+      }
+
+      .session-status {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .status-connected {
+        background: #25d366;
+        color: white;
+      }
+
+      .status-disconnected {
+        background: #ffc107;
+        color: #333;
+      }
+
+      .session-info {
+        margin-bottom: 15px;
+      }
+
+      .session-info p {
+        color: #666;
+        font-size: 14px;
+        margin-bottom: 5px;
+      }
+
+      .session-info strong {
+        color: #333;
+      }
+
+      .session-actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      .alert {
+        padding: 15px 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        font-weight: 500;
+      }
+
+      .alert-success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .alert-error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .alert-info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+
+      .loading {
+        display: none;
+        text-align: center;
+        padding: 20px;
+        color: #666;
+      }
+
+      .loading.active {
+        display: block;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 40px;
+        color: #666;
+      }
+
+      .empty-state svg {
+        width: 80px;
+        height: 80px;
+        margin-bottom: 20px;
+        opacity: 0.5;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>
+          <span>📱</span>
+          WhatsApp Session Manager
+        </h1>
+        <p>Manage multiple WhatsApp sessions easily</p>
+      </div>
+
+      <div id="alertContainer"></div>
+
+      <div class="card">
+        <h2>➕ Create New Session</h2>
+        <form id="createSessionForm">
+          <div class="form-group">
+            <label for="sessionName">Session Name</label>
+            <input
+              type="text"
+              id="sessionName"
+              name="sessionName"
+              placeholder="e.g., akun1, customer01"
+              required
+              pattern="[a-z0-9]+"
+            />
+            <small>Only lowercase letters and numbers allowed</small>
+          </div>
+          <button type="submit" class="btn btn-primary" id="createBtn">
+            Create Session
+          </button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>📋 Sessions List</h2>
+        <div class="loading" id="loading">
+          <p>Loading sessions...</p>
+        </div>
+        <div id="sessionsContainer"></div>
+      </div>
+    </div>
+
+    <script>
+      const API_BASE = window.location.origin;
+      let authToken = "";
+
+      // Prompt for credentials on page load
+      function getCredentials() {
+        const username = prompt("Enter username:");
+        const password = prompt("Enter password:");
+        if (username && password) {
+          authToken = btoa(username + ":" + password);
+          return true;
+        }
+        return false;
+      }
+
+      function showAlert(message, type = "info") {
+        const alertContainer = document.getElementById("alertContainer");
+        const alert = document.createElement("div");
+        alert.className = `alert alert-${type}`;
+        alert.textContent = message;
+        alertContainer.appendChild(alert);
+
+        setTimeout(() => {
+          alert.remove();
+        }, 5000);
+      }
+
+      async function fetchSessions() {
+        const loading = document.getElementById("loading");
+        const container = document.getElementById("sessionsContainer");
+
+        loading.classList.add("active");
+
+        try {
+          const response = await fetch(`${API_BASE}/sessions`, {
+            headers: {
+              Authorization: `Basic ${authToken}`,
+            },
+          });
+
+          if (!response.ok) {
+            throw new Error("Failed to fetch sessions");
+          }
+
+          const data = await response.json();
+          renderSessions(data.sessions);
+        } catch (error) {
+          showAlert("Error loading sessions: " + error.message, "error");
+          container.innerHTML =
+            '<div class="empty-state"><p>Failed to load sessions</p></div>';
+        } finally {
+          loading.classList.remove("active");
+        }
+      }
+
+      function renderSessions(sessions) {
+        const container = document.getElementById("sessionsContainer");
+
+        if (sessions.length === 0) {
+          container.innerHTML = `
+          <div class="empty-state">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+            </svg>
+            <h3>No Sessions Yet</h3>
+            <p>Create your first session to get started</p>
+          </div>
+        `;
+          return;
+        }
+
+        const grid = document.createElement("div");
+        grid.className = "sessions-grid";
+
+        sessions.forEach((session) => {
+          const card = document.createElement("div");
+          card.className = `session-card ${
+            session.isConnected ? "connected" : "disconnected"
+          }`;
+
+          const createdDate = new Date(session.createdAt).toLocaleDateString();
+          const lastActivityDate = new Date(
+            session.lastActivity
+          ).toLocaleString();
+
+          card.innerHTML = `
+          <div class="session-header">
+            <div class="session-name">${session.name}</div>
+            <span class="session-status ${
+              session.isConnected ? "status-connected" : "status-disconnected"
+            }">
+              ${session.isConnected ? "● Connected" : "○ Disconnected"}
+            </span>
+          </div>
+          <div class="session-info">
+            <p><strong>Phone:</strong> ${session.phoneNumber}</p>
+            <p><strong>Created:</strong> ${createdDate}</p>
+            <p><strong>Last Active:</strong> ${lastActivityDate}</p>
+          </div>
+          <div class="session-actions">
+            <a href="/${
+              session.name
+            }/qr" target="_blank" class="btn btn-secondary">
+              📱 QR Code
+            </a>
+            <button class="btn btn-danger" onclick="deleteSession('${
+              session.name
+            }')">
+              🗑️ Delete
+            </button>
+          </div>
+        `;
+
+          grid.appendChild(card);
+        });
+
+        container.innerHTML = "";
+        container.appendChild(grid);
+      }
+
+      async function createSession(sessionName) {
+        const createBtn = document.getElementById("createBtn");
+        createBtn.disabled = true;
+        createBtn.textContent = "Creating...";
+
+        try {
+          const response = await fetch(`${API_BASE}/sessions/${sessionName}`, {
+            method: "POST",
+            headers: {
+              Authorization: `Basic ${authToken}`,
+            },
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.message || "Failed to create session");
+          }
+
+          showAlert(
+            `Session "${sessionName}" created successfully! Opening QR code...`,
+            "success"
+          );
+
+          // Open QR code in new tab
+          window.open(`/${sessionName}/qr`, "_blank");
+
+          // Refresh sessions list
+          setTimeout(() => fetchSessions(), 1000);
+
+          // Reset form
+          document.getElementById("createSessionForm").reset();
+        } catch (error) {
+          showAlert("Error creating session: " + error.message, "error");
+        } finally {
+          createBtn.disabled = false;
+          createBtn.textContent = "Create Session";
+        }
+      }
+
+      async function deleteSession(sessionName) {
+        if (
+          !confirm(
+            `Are you sure you want to delete session "${sessionName}"? This action cannot be undone.`
+          )
+        ) {
+          return;
+        }
+
+        try {
+          const response = await fetch(`${API_BASE}/${sessionName}`, {
+            method: "DELETE",
+            headers: {
+              Authorization: `Basic ${authToken}`,
+            },
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.message || "Failed to delete session");
+          }
+
+          showAlert(`Session "${sessionName}" deleted successfully`, "success");
+          fetchSessions();
+        } catch (error) {
+          showAlert("Error deleting session: " + error.message, "error");
+        }
+      }
+
+      // Event Listeners
+      document
+        .getElementById("createSessionForm")
+        .addEventListener("submit", (e) => {
+          e.preventDefault();
+          const sessionName = document
+            .getElementById("sessionName")
+            .value.trim();
+          if (sessionName) {
+            createSession(sessionName);
+          }
+        });
+
+      // Initialize
+      if (getCredentials()) {
+        fetchSessions();
+        // Auto-refresh every 10 seconds
+        setInterval(fetchSessions, 10000);
+      } else {
+        showAlert("Authentication required", "error");
+      }
+    </script>
+  </body>
+</html>

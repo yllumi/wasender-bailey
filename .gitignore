@@ -6,4 +6,4 @@ bun.lock
 # env
 .env
 .env.local
-.env.*.local
+.env.*.localsessions_registry.json
