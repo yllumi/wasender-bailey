@@ -328,10 +328,14 @@ app.get('/', (c) => {
       let htmlContent = readFileSync(htmlPath, 'utf-8')
       
       // Inject actual values into HTML
-      const serverUrl = `${c.req.header('x-forwarded-proto') || 'http'}://${c.req.header('host') || 'localhost:8990'}`
+      const host = c.req.header('host') || 'localhost:8990'
+      const proto = c.req.header('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https')
+      const serverUrl = `${proto}://${host}`
+      
       htmlContent = htmlContent.replace(/YOUR_APP_KEY/g, currentAppKey || 'YOUR_APP_KEY')
-      htmlContent = htmlContent.replace(/your-server:8990/g, c.req.header('host') || 'localhost:8990')
-      htmlContent = htmlContent.replace(/yoursession/g, 'yoursession')
+      htmlContent = htmlContent.replace(/http:\/\/your-server:8990/g, serverUrl)
+      htmlContent = htmlContent.replace(/https:\/\/your-server:8990/g, serverUrl)
+      htmlContent = htmlContent.replace(/your-server:8990/g, host)
       
       return c.html(htmlContent)
     } else {
