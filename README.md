@@ -2,6 +2,8 @@
 
 WhatsApp API dengan dukungan multi-session menggunakan Hono framework dan Baileys library untuk mengirim pesan WhatsApp melalui HTTP endpoint.
 
+![contoh-dashboard-wasender.png](https://image.web.id/images/contoh-dashboard-wasender.png)
+
 ## 🚀 Fitur
 
 - ✅ **Multi-session support** - Kelola banyak akun WhatsApp dalam satu aplikasi
