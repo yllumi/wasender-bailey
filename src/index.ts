@@ -195,6 +195,41 @@ async function connectSession(sessionName: string) {
   }
 }
 
+// Send message with typing simulation for natural feel
+async function sendMessageWithTyping(sock: any, jid: string, message: string, sessionName: string) {
+  try {
+    // 1. Subscribe to contact's presence
+    await sock.presenceSubscribe(jid)
+
+    // 2. Show typing status
+    await sock.sendPresenceUpdate('composing', jid)
+    
+    // 3. Simulate typing delay based on message length (1s per 5 words + random 1-3s)
+    const wordCount = message.split(/\s+/).filter(Boolean).length
+    const baseDelay = Math.max(500, (wordCount / 5) * 1000) // at least 500ms
+    await new Promise(resolve => setTimeout(resolve, baseDelay))
+
+    await sock.sendPresenceUpdate('paused', jid)
+    const randomDelay = 1000 + Math.random() * 2000
+    await new Promise(resolve => setTimeout(resolve, randomDelay))
+    
+    await sock.sendPresenceUpdate('composing', jid)
+    await new Promise(resolve => setTimeout(resolve, randomDelay))
+
+    // 4. Send the message
+    await sock.sendMessage(jid, { text: message })
+
+    // 5. Stop typing status
+    await sock.sendPresenceUpdate('paused', jid)
+
+    console.log(`[${sessionName}] Message sent with typing simulation to ${jid.split('@')[0]}`)
+  } catch (error) {
+    console.error(`[${sessionName}] Error in sendMessageWithTyping:`, error)
+    // Fallback: try sending directly without typing simulation
+    await sock.sendMessage(jid, { text: message })
+  }
+}
+
 // Ensure specific session connection is active
 async function ensureSessionConnection(sessionName: string): Promise<boolean> {
   const sessionData = sessions.get(sessionName)
@@ -581,8 +616,8 @@ app.post('/:session_name/send', validateAppKey, async (c) => {
 
     const jid = `${formattedNumber}@s.whatsapp.net`
 
-    console.log(`[${sessionName}] Sending message to ${formattedNumber}...`)
-    await sessionData.sock.sendMessage(jid, { text: message })
+    console.log(`[${sessionName}] Sending message to ${formattedNumber} with typing simulation...`)
+    await sendMessageWithTyping(sessionData.sock, jid, message, sessionName)
     
     sessionData.lastActivity = new Date()
     saveSessionsRegistry()
