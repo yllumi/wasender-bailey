@@ -1,7 +1,0 @@
-POST http://localhost:8990/toharyan/send?app_key=b5a4e372a4ec0c15683ff08e132e7042ebd5b363d338cfd864ba6f826d95dd90 HTTP/1.1
-Content-Type: application/json
-
-{
-    "number": "6285156326916",
-    "message": "tempatnya di Hotel Mercure Jakarta Batavia, Jalan Kali Besar Barat No.44-46, Roa Malaka, Kecamatan Tambora, Kota Jakarta Barat, Daerah Khusus Ibukota Jakarta"
-}

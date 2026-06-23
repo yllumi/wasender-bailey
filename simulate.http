@@ -1,0 +1,13 @@
+# Gunakan extension REST Client untuk menjalankan request dari file ini
+@appkey = b5a4e372a4ec0c15683ff08e132e7042ebd5b363d338cfd864ba6f826d95dd90
+@baseUrl = http://localhost:8990/md
+@number = 628986818780
+
+### Simulate Send Message
+POST {{baseUrl}}/send?app_key={{appkey}} HTTP/1.1
+Content-Type: application/json
+
+{
+    "number": "{{number}}",
+    "message": "Malu kenapa euy?"
+}
