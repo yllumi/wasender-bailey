@@ -9,4 +9,5 @@ bun.lock
 .env.*.local
 
 # runtime data
+data/
 sessions_registry.json

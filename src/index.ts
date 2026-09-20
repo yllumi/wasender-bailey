@@ -27,47 +27,52 @@ interface SessionData {
 
 // Session registry
 const sessions = new Map<string, SessionData>()
-const SESSIONS_REGISTRY_FILE = 'sessions_registry.json'
-const AUTH_BASE_DIR = 'auth_info_baileys/sessions'
+// Semua state runtime berada di satu direktori relatif supaya bisa di-mount sebagai
+// satu volume, tanpa file yang harus dibuat dulu di host.
+const DATA_DIR = 'data'
+const SESSIONS_REGISTRY_FILE = join(DATA_DIR, 'sessions_registry.json')
+const AUTH_BASE_DIR = join(DATA_DIR, 'auth_info_baileys', 'sessions')
+const APP_KEY_FILE = join(DATA_DIR, 'app_key')
 // Port sengaja statis, bukan dari env. Untuk mengekspos di port host lain, ubah
 // mapping di docker-compose.yml (mis. "9000:8990").
 const PORT = 8990
 const MAX_SESSIONS = parseInt(process.env.MAX_SESSIONS || '15')
 
-let currentAppKey: string = process.env.APP_KEY || ''
-
-// Ensure base auth directory exists
+// Ensure runtime data directory exists
 if (!existsSync(AUTH_BASE_DIR)) {
   mkdirSync(AUTH_BASE_DIR, { recursive: true })
 }
+
+// APP_KEY dari environment selalu menang. File data/app_key hanya dipakai bila
+// environment tidak menyetel APP_KEY.
+let currentAppKey: string = process.env.APP_KEY || readAppKeyFile()
 
 // Function to generate random app key
 function generateAppKey(): string {
   return randomBytes(32).toString('hex')
 }
 
-// Persist app key to .env (Bun loads .env automatically on startup)
-function saveAppKeyToEnv(appKey: string): boolean {
-  const envFile = '.env'
-
+// Read app key persisted by /generate-appkey
+function readAppKeyFile(): string {
   try {
-    const line = `APP_KEY=${appKey}`
-    let content = existsSync(envFile) ? readFileSync(envFile, 'utf-8') : ''
-
-    if (/^APP_KEY=.*$/m.test(content)) {
-      content = content.replace(/^APP_KEY=.*$/m, line)
-    } else {
-      if (content && !content.endsWith('\n')) {
-        content += '\n'
-      }
-      content += `${line}\n`
+    if (existsSync(APP_KEY_FILE)) {
+      return readFileSync(APP_KEY_FILE, 'utf-8').trim()
     }
+  } catch (error) {
+    console.error('Error reading app key file:', error)
+  }
 
-    writeFileSync(envFile, content)
-    console.log('App key saved to .env')
+  return ''
+}
+
+// Persist app key so it survives a restart when APP_KEY is not set in the environment
+function saveAppKeyToFile(appKey: string): boolean {
+  try {
+    writeFileSync(APP_KEY_FILE, `${appKey}\n`)
+    console.log(`App key saved to ${APP_KEY_FILE}`)
     return true
   } catch (error) {
-    console.error('Error saving app key to .env:', error)
+    console.error('Error saving app key file:', error)
     return false
   }
 }
@@ -109,14 +114,18 @@ function loadSessionsRegistry() {
       console.log(`Found ${data.length} saved sessions, attempting to restore...`)
       
       for (const session of data) {
-        if (existsSync(session.authFolder)) {
+        // Path selalu diturunkan dari AUTH_BASE_DIR, bukan dari isi registry, supaya
+        // registry tetap valid setelah direktori data dipindahkan.
+        const authFolder = join(AUTH_BASE_DIR, session.name)
+
+        if (existsSync(authFolder)) {
           sessions.set(session.name, {
             sock: null,
             qrCode: '',
             isConnected: false,
             isReconnecting: false,
             phoneNumber: session.phoneNumber,
-            authFolder: session.authFolder,
+            authFolder,
             createdAt: new Date(session.createdAt),
             lastActivity: new Date(session.lastActivity)
           })
@@ -759,15 +768,17 @@ app.get('/generate-appkey', validateBasicAuth, async (c) => {
 
     // Apply immediately and persist so the new key survives a restart
     currentAppKey = appKey
-    const persisted = saveAppKeyToEnv(appKey)
+    const persisted = saveAppKeyToFile(appKey)
+    const envOverride = Boolean(process.env.APP_KEY)
 
     return c.json({
       success: true,
-      message: persisted
-        ? 'App key generated and saved to .env file.'
-        : 'App key generated but could not be saved. Save it to .env manually.',
+      message: envOverride
+        ? 'App key generated and active now, but APP_KEY from the environment takes over after restart.'
+        : 'App key generated and saved to data/app_key.',
       app_key: appKey,
       persisted,
+      env_override: envOverride,
     })
   } catch (error) {
     console.error('Error generating app key:', error)

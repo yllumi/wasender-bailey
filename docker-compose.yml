@@ -14,10 +14,15 @@ services:
     # Beri waktu socket Baileys menutup koneksi sebelum SIGKILL
     stop_grace_period: 20s
 
-    # APP_KEY/HTTP_AUTH_*/MAX_SESSIONS dibaca dari .env di root repo ini.
-    # Port tidak diambil dari env: app selalu listen di 8990 (lihat src/index.ts).
-    env_file:
-      - .env
+    # Semua konfigurasi lewat environment. Compose tetap otomatis membaca file .env di
+    # direktori ini untuk interpolasi bila ada, tapi file itu TIDAK wajib — jadi
+    # `docker compose up` tidak gagal hanya karena .env belum dibuat.
+    # Default di kode: HTTP_AUTH_*=admin/admin, MAX_SESSIONS=15, APP_KEY=''.
+    environment:
+      APP_KEY: ${APP_KEY:-}
+      HTTP_AUTH_USERNAME: ${HTTP_AUTH_USERNAME:-}
+      HTTP_AUTH_PASSWORD: ${HTTP_AUTH_PASSWORD:-}
+      MAX_SESSIONS: ${MAX_SESSIONS:-}
 
     ports:
       # host:container. Ubah sisi kiri (mis. "9000:8990") untuk port host lain.
@@ -25,25 +30,11 @@ services:
       - "8990:8990"
 
     volumes:
-      # Kredensial WhatsApp per session. Wajib persisten, kalau hilang harus
-      # scan QR ulang. Jangan pernah di-commit.
-      - type: bind
-        source: ./auth_info_baileys
-        target: /app/auth_info_baileys
-
-      # Registry session (berisi nomor telepon). create_host_path: false membuat
-      # compose gagal dengan pesan jelas bila file belum ada, daripada diam-diam
-      # membuat direktori dan membuat app error.
-      - type: bind
-        source: ./sessions_registry.json
-        target: /app/sessions_registry.json
-        bind:
-          create_host_path: false
-
-      # Ikut di-mount karena /generate-appkey menulis ulang APP_KEY ke file ini.
-      - type: bind
-        source: ./.env
-        target: /app/.env
+      # Named volume, bukan bind mount ke path di host. Docker yang mengatur
+      # ownership (uid 1000 = user `bun`), sehingga tidak ada file atau direktori yang
+      # harus dibuat lebih dulu dan tidak ada masalah permission.
+      # Isinya: kredensial Baileys, sessions_registry.json, dan app key hasil rotasi.
+      - wabaileys-data:/app/data
 
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS \"http://127.0.0.1:8990/health\" || exit 1"]
@@ -58,3 +49,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  wabaileys-data:

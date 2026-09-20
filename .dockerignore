@@ -1,5 +1,6 @@
-# Jangan pernah masukkan kredensial WhatsApp, app key, atau data nomor telepon
-# ke dalam image. Ketiganya di-mount saat runtime dari host.
+# Jangan pernah masukkan kredensial WhatsApp, app key, atau data nomor telepon ke
+# dalam image. Semuanya berada di volume /app/data saat runtime.
+data
 auth_info_baileys
 sessions_registry.json
 .env

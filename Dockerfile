@@ -16,12 +16,9 @@ WORKDIR /app
 # curl dipakai oleh HEALTHCHECK
 RUN apk add --no-cache curl
 
-# Runtime state dibuat sebagai FILE, bukan direktori. Docker membuat direktori
-# bila bind mount tidak menemukan file di host, dan itu akan membuat app gagal
-# menulis sessions_registry.json.
-RUN mkdir -p auth_info_baileys/sessions \
- && printf '[]\n' > sessions_registry.json \
- && touch .env \
+# Direktori state runtime. Disiapkan di image supaya ownership volume yang
+# di-mount ke /app/data benar (uid 1000 = user `bun`).
+RUN mkdir -p data/auth_info_baileys/sessions \
  && chown -R bun:bun /app
 
 COPY --from=deps --chown=bun:bun /app/node_modules ./node_modules

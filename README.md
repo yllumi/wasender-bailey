@@ -73,22 +73,11 @@ Server akan berjalan di `http://localhost:8990`. Port bersifat statis dan di-har
 
 Tersedia `Dockerfile` dan `docker-compose.yml` di root repo.
 
-### Prasyarat
-
-File runtime berikut di-mount dari host, jadi harus sudah ada sebelum `docker compose up`:
-
-```bash
-cp .env.example .env           # konfigurasi (wajib)
-touch sessions_registry.json   # registry session
-```
-
-Folder `auth_info_baileys/` boleh belum ada; Docker akan membuatnya otomatis.
-
-> `sessions_registry.json` harus berupa **file**. Bila belum ada, compose berhenti dengan
-> pesan error — ini disengaja, karena Docker cenderung membuat **direktori** untuk bind
-> mount yang sumbernya tidak ada, dan app akan gagal menulis registry.
-
 ### Menjalankan
+
+Tidak ada prasyarat. `docker compose up` tetap berhasil walau `.env` dan folder `data/`
+belum ada: konfigurasi dibaca dari `environment:` (bisa diisi lewat `.env`, bisa juga
+di-inject oleh platform deploy), dan seluruh state runtime disimpan di named volume.
 
 ```bash
 docker compose up -d --build
@@ -104,11 +93,56 @@ docker compose logs -f
 Health check otomatis memanggil `GET /health`, jadi container ditandai `healthy` setelah
 endpoint itu membalas OK.
 
+### Konfigurasi
+
+Compose memakai interpolasi `${VAR:-}`, dan Compose otomatis membaca `.env` di root repo bila
+file itu ada. Jadi konfigurasi bisa diisi lewat `.env`, atau langsung lewat `environment:`
+(yang dipakai platform deploy).
+
+| Variabel | Default bila kosong |
+| --- | --- |
+| `APP_KEY` | `''` |
+| `HTTP_AUTH_USERNAME` | `admin` |
+| `HTTP_AUTH_PASSWORD` | `admin` |
+| `MAX_SESSIONS` | `15` |
+
+Untuk produksi, pastikan `HTTP_AUTH_PASSWORD` di-set — jangan biarkan default `admin`.
+
+### Data yang persisten
+
+State runtime disimpan di named volume `wabaileys-data` (di-mount ke `/app/data`):
+
+```
+/app/data/app_key                             # hasil rotasi /generate-appkey
+/app/data/sessions_registry.json              # daftar session
+/app/data/auth_info_baileys/sessions/<nama>/  # kredensial WhatsApp
+```
+
+Named volume dipilih supaya Docker yang mengatur ownership (uid 1000 = user `bun`), sehingga
+tidak ada file atau direktori di host yang perlu dibuat lebih dulu. Inilah yang membuat
+`docker compose up` tidak lagi gagal karena path belum ada.
+
+Backup dan inspeksi:
+
+```bash
+# backup isi volume ke tar.gz di root repo
+docker run --rm -v wabaileys_wabaileys-data:/data -v "$PWD:/backup" alpine \
+  tar czf /backup/wabaileys-data.tar.gz -C /data .
+
+# lihat isi volume
+docker compose exec wabaileys ls -la /app/data
+```
+
+Bila lebih suka data terlihat di host, ganti bagian `volumes:` menjadi `- ./data:/app/data`.
+Syaratnya folder `data/` di host dimiliki uid 1000 (user `bun` di dalam container), karena
+folder yang dibuat otomatis oleh Docker dimiliki `root` dan app akan gagal menulis.
+
 ### Berhenti dan memperbarui
 
 ```bash
-docker compose down            # stop + hapus container (data di host tetap aman)
+docker compose down            # stop + hapus container (volume tetap aman)
 docker compose up -d --build   # rebuild setelah mengubah kode
+docker compose down -v         # stop dan HAPUS volume (semua session hilang)
 ```
 
 ### Catatan penting
@@ -116,13 +150,13 @@ docker compose up -d --build   # rebuild setelah mengubah kode
 - **Port statis 8990.** Hentikan dulu `bun run dev` bila sedang berjalan di port 8990.
   App selalu listen di 8990; untuk mengekspos di port host lain, ubah mapping menjadi
   mis. `"9000:8990"` di `docker-compose.yml`.
-- **Jangan menjalankan dua instance sekaligus** dengan folder `auth_info_baileys/` yang sama.
-  Dua proses dengan kredensial yang sama bisa membuat sesi WhatsApp saling bentrok.
-- `auth_info_baileys/`, `sessions_registry.json`, dan `.env` di-mount dari host sehingga
-  session tidak hilang saat container dibuat ulang. Ketiganya **tidak** ikut ke dalam image
-  (lihat `.dockerignore`).
-- Container berjalan sebagai user non-root `bun` (uid 1000). Bila uid Anda berbeda, file
-  bind mount bisa tidak bisa ditulis.
+- **Jangan menjalankan dua instance sekaligus** terhadap data yang sama. Dua proses dengan
+  kredensial yang sama bisa membuat sesi WhatsApp saling bentrok. Ingat bahwa `bun run dev`
+  memakai folder `data/` di host, sedangkan container memakai named volume — keduanya
+  terpisah.
+- Folder `data/` (native) dan isi volume (Docker) **tidak** ikut ke dalam image, lihat
+  `.dockerignore`.
+- Container berjalan sebagai user non-root `bun` (uid 1000).
 - Port dipublikasikan di semua interface. Awali dengan `127.0.0.1:` di `docker-compose.yml`
   bila hanya ingin diakses dari mesin ini sendiri.
 
@@ -160,7 +194,7 @@ Interface ini memungkinkan Anda untuk:
    - Buka WhatsApp → **Settings** → **Linked Devices** → **Link a Device**
 4. Tunggu hingga status berubah menjadi "WhatsApp Connected"
 
-**Note:** Session akan tersimpan di folder `auth_info_baileys/sessions/{session_name}`, jadi Anda tidak perlu scan QR code setiap kali restart aplikasi.
+**Note:** Session akan tersimpan di folder `data/auth_info_baileys/sessions/{session_name}` (di dalam volume bernama bila dijalankan lewat Docker), jadi Anda tidak perlu scan QR code setiap kali restart aplikasi.
 
 ## 🎯 Session Names
 
@@ -186,15 +220,21 @@ Response:
 ```json
 {
   "success": true,
-  "message": "App key generated and saved to .env file.",
+  "message": "App key generated and saved to data/app_key.",
   "app_key": "b5a4e372a4ec0c15683ff08e132e7042ebd5b363d338cfd864ba6f826d95dd90",
-  "persisted": true
+  "persisted": true,
+  "env_override": false
 }
 ```
 
-App key baru **langsung aktif** (tidak perlu restart) dan otomatis ditulis ke file `.env`,
-sehingga tetap berlaku setelah aplikasi dijalankan ulang. Bila penulisan `.env` gagal,
-respons berisi `"persisted": false` dan Anda harus menyimpan key tersebut secara manual.
+App key baru **langsung aktif** (tidak perlu restart) dan disimpan ke `data/app_key`, jadi
+tetap berlaku setelah aplikasi dijalankan ulang.
+
+**Prioritas:** bila `APP_KEY` di-set di environment (mis. lewat `environment:` di compose,
+atau `.env` yang dimuat Bun saat startup), nilai itu **menang** dan dipakai lagi setelah
+restart. Respons menandainya dengan `"env_override": true`. Untuk memakai key hasil rotasi
+secara permanen, perbarui `APP_KEY` di environment Anda, atau kosongkan `APP_KEY` di sana
+agar app memakai `data/app_key`.
 
 ### Cek App Key yang Terdaftar
 
@@ -410,7 +450,7 @@ curl -X POST "http://localhost:8990/akun1/send?app_key=YOUR_APP_KEY" \
 ---
 
 ### 8. GET `/generate-appkey`
-Generate app key baru, langsung mengaktifkannya, dan menyimpannya ke `.env`.
+Generate app key baru, langsung mengaktifkannya, dan menyimpannya ke `data/app_key`.
 
 **Authentication:** HTTP Basic Auth
 
@@ -424,11 +464,15 @@ curl http://localhost:8990/generate-appkey \
 ```json
 {
   "success": true,
-  "message": "App key generated and saved to .env file.",
+  "message": "App key generated and saved to data/app_key.",
   "app_key": "b5a4e372a4ec0c15683ff08e132e7042ebd5b363d338cfd864ba6f826d95dd90",
-  "persisted": true
+  "persisted": true,
+  "env_override": false
 }
 ```
+
+Bila `APP_KEY` di-set di environment, respons berisi `"env_override": true` dan nilai
+environment akan berlaku lagi setelah restart.
 
 ---
 

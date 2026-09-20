@@ -49,11 +49,10 @@ verifikasi manual lewat endpoint `/health` atau file `simulate.http` (butuh ekst
 src/index.ts          # SELURUH backend: setup socket, session registry, semua route Hono
 public/index.html     # dashboard web (CSS + JS inline, di-inject nilai app key & base URL)
 simulate.http         # contoh request manual (REST Client)
-sessions_registry.json# data runtime, gitignored
-auth_info_baileys/    # kredensial Baileys per session, gitignored
-.env.example          # template konfigurasi; salin ke .env (yang gitignored)
+data/                 # SELURUH state runtime, gitignored (lihat bagian State Runtime)
+.env.example          # template konfigurasi; opsional, salin ke .env bila perlu
 Dockerfile            # image runtime (oven/bun:1-alpine, multi-stage)
-docker-compose.yml    # orkestrasi container + bind mount runtime state
+docker-compose.yml    # orkestrasi container + named volume untuk data/
 tsconfig.json         # hanya strict + jsx hono
 ```
 
@@ -62,19 +61,35 @@ Tidak ada folder `routes/`, `services/`, atau `middleware/`. Untuk perubahan kec
 edit langsung di `src/index.ts` dan ikuti pola yang sudah ada — jangan refactor jadi
 banyak modul kecuali diminta secara eksplisit.
 
+### State Runtime
+
+Semua state yang bisa berubah berada di satu direktori relatif `data/`. Path diturunkan dari
+konstanta di `src/index.ts` — jangan menulis path absolut atau menyebar state ke root repo:
+
+```
+data/app_key                             # app key hasil rotasi, dipakai sebagai fallback
+data/sessions_registry.json              # daftar session (berisi nomor telepon)
+data/auth_info_baileys/sessions/<nama>/  # kredensial Baileys per session
+```
+
+`loadSessionsRegistry()` selalu menurunkan `authFolder` dari `AUTH_BASE_DIR` + nama session,
+**bukan** dari field `authFolder` di registry. Ini yang membuat registry tetap valid setelah
+`data/` dipindahkan. Pertahankan sifat itu.
+
 ### Docker
 
-`docker-compose.yml` mem-bind-mount `auth_info_baileys/`, `sessions_registry.json`, dan `.env`
-dari root repo, karena app menulis ketiganya relatif ke CWD (`/app`). Jangan menggantinya
-menjadi named volume tanpa memindahkan datanya — session yang sudah ada akan hilang dan user
-harus scan QR ulang.
+`docker-compose.yml` memakai named volume `wabaileys-data` yang di-mount ke `/app/data`.
+Jangan menggantinya dengan bind mount ke file di host: `create_host_path` akan membuat
+**direktori** bila file belum ada, lalu app gagal menulis. Named volume juga membuat Docker
+yang mengatur ownership, sehingga `docker compose up` tidak butuh file apa pun di host
+(termasuk `.env`).
 
-`sessions_registry.json` memakai `create_host_path: false` supaya `docker compose up` gagal
-dengan pesan jelas bila file belum ada. Docker cenderung membuat **direktori** untuk bind mount
-yang sumbernya tidak ada, dan app akan gagal menulis registry.
+Konfigurasi **tidak** memakai `env_file` — dulu itu sumber kegagalan `docker compose up` pada
+deployment yang menyuntik env lewat `environment:`. Compose memakai interpolasi `${VAR:-}`,
+sehingga `.env` di root repo otomatis terpakai bila ada dan tetap valid bila tidak ada.
 
-Saat menambah file runtime baru: tambahkan ke `.dockerignore` bila berisi rahasia, dan tambahkan
-bind mount bila perlu persisten.
+Saat menambah state runtime baru: taruh di bawah `data/`, tambahkan ke `.dockerignore`, dan
+tambahkan ke daftar di atas.
 
 ---
 
@@ -84,7 +99,7 @@ Dibaca dari `process.env` (Bun memuat `.env` otomatis):
 
 | Variabel | Default | Catatan |
 | --- | --- | --- |
-| `APP_KEY` | `''` | Dipakai untuk `validateAppKey`. Dibaca sekali saat startup ke `currentAppKey`. |
+| `APP_KEY` | `''` | Dipakai untuk `validateAppKey`. Menang atas `data/app_key`. Dibaca sekali saat startup ke `currentAppKey`. |
 | `HTTP_AUTH_USERNAME` | `admin` | Basic Auth management endpoint. |
 | `HTTP_AUTH_PASSWORD` | `admin` | Basic Auth management endpoint. |
 | `MAX_SESSIONS` | `15` | Batas jumlah session in-memory. |
@@ -94,10 +109,14 @@ Dibaca dari `process.env` (Bun memuat `.env` otomatis):
 Jangan mengembalikan `process.env.PORT` tanpa diminta; untuk mengekspos di port host lain,
 ubah mapping di `docker-compose.yml` (mis. `"9000:8990"`).
 
-Template ada di `.env.example` — salin dengan `cp .env.example .env`. **Hanya `.env` yang di-load
-Bun otomatis**, dan file itu gitignored sehingga tidak boleh di-commit atau dicetak isinya.
-`APP_KEY` dibaca sekali saat startup ke `currentAppKey`; `/generate-appkey` menulis ulang baris
-`APP_KEY=` di `.env` melalui `saveAppKeyToEnv()`.
+Template ada di `.env.example`. `.env` bersifat **opsional** — tanpa file itu app memakai
+default di tabel atas. Bun memuat `.env` otomatis bila ada, dan file itu gitignored sehingga
+tidak boleh di-commit atau dicetak isinya.
+
+**Prioritas app key:** `process.env.APP_KEY` menang; bila kosong, app membaca `data/app_key`
+lewat `readAppKeyFile()`. `/generate-appkey` memperbarui `currentAppKey` seketika, menulis
+`data/app_key` lewat `saveAppKeyToFile()`, dan menandai respons dengan `env_override` bila
+environment akan menimpa key tersebut setelah restart.
 
 ---
 
@@ -216,10 +235,10 @@ Saat menambah logging, jangan echo `app_key`, password, atau isi `creds.json`.
 Perhatikan juga bahwa nilai rahasia tidak boleh di-hardcode di `public/index.html`;
 nilai `YOUR_APP_KEY` dan `http://your-server:8990` di-inject saat runtime oleh handler `GET /`.
 
-Jangan hapus entri `auth_info_baileys`, `.env`, dan `sessions_registry.json` dari
-`.dockerignore` — tanpa itu ketiganya ikut ter-bake ke dalam image. Jangan pula menjalankan
-`docker compose config` tanpa `--quiet`: perintah itu mengekspansi `env_file` dan mencetak
-nilai `APP_KEY` serta password ke terminal.
+Jangan hapus entri `data`, `.env`, dan entri runtime lain dari `.dockerignore` — tanpa itu
+kredensial WhatsApp dan data nomor telepon ikut ter-bake ke dalam image. Jangan pula
+menjalankan `docker compose config` tanpa `--quiet`: perintah itu mengekspansi nilai `.env`
+dan mencetak `APP_KEY` serta password ke terminal.
 
 ---
 
@@ -230,15 +249,21 @@ Kelima temuan lama sudah beres. Jangan mengembalikannya tanpa alasan kuat:
 1. Default `PORT` kini `8990` — konsisten dengan README dan `.env.example`.
 2. `/appkey` membaca `currentAppKey`, satu sumber kebenaran dengan `validateAppKey`.
 3. `/generate-appkey` dibatasi `validateBasicAuth`, langsung memperbarui `currentAppKey`, dan
-   menulis `APP_KEY` ke `.env` lewat `saveAppKeyToEnv()`. Respons memuat flag `persisted`.
+   menulis `data/app_key` lewat `saveAppKeyToFile()`. Respons memuat `persisted` + `env_override`.
 4. File contoh kini bernama `.env.example`; `.env` tetap gitignored dan tidak boleh di-commit.
 5. `GET /` dan `GET /:session_name/qr` sudah memakai `validateBasicAuth`. Sebelumnya `GET /`
    membocorkan app key karena meng-inject `currentAppKey` ke HTML dashboard tanpa autentikasi.
+6. Seluruh state runtime dipindah ke `data/`, dan compose memakai named volume + interpolasi
+   `${VAR:-}` (bukan `env_file`). Sebelumnya `docker compose up` gagal di deployment yang
+   meng-inject env lewat `environment:` dan belum punya `.env` maupun `sessions_registry.json`.
 
 ### Sisa keterbatasan yang perlu diingat
 
-- `saveAppKeyToEnv()` menulis `.env` relatif ke CWD proses. Jalankan server dari root repo.
+- `data/` diresolusi relatif ke CWD proses. Jalankan server dari root repo (`bun run dev`)
+  atau dari `/app` di dalam container, kalau tidak state akan tertulis di tempat lain.
 - Setelah rotasi key, app key di dashboard baru ter-update saat halaman di-reload.
+- Bila `APP_KEY` di-set di environment, nilai itu menang atas `data/app_key` setiap restart
+  (respons `/generate-appkey` menandainya dengan `env_override: true`).
 - Ganti app key berarti client lama langsung kena 401, karena `validateAppKey` membandingkan
   dengan `currentAppKey` secara langsung.
 - `GET /` meng-inject app key ke HTML, jadi route itu wajib tetap di belakang `validateBasicAuth`.
@@ -270,6 +295,7 @@ Semua poin di atas sudah dipenuhi dan diuji manual pada server `bun run dev` (po
 | `GET /appkey` dibanding `APP_KEY` di `.env` | identik, panjang 64 |
 | `GET /generate-appkey` dengan Basic Auth | `persisted: true`, `.env` diperbarui (tetap 1 baris `APP_KEY`), `currentAppKey` langsung aktif |
 | HTML dashboard | placeholder `YOUR_APP_KEY` sudah tergantikan |
-| `git status` | `.env`, `sessions_registry.json`, `auth_info_baileys/` ignored |
-| `docker compose up -d --build` | image 154 MB, container `Up (healthy)`, bind mount writable oleh uid 1000 |
-| Isi image | `.env` 0 byte, `auth_info_baileys/sessions` kosong, registry `[]`, tidak ada jejak app key |
+| `git status` | `.env`, `data/` ignored |
+| `docker compose up -d` tanpa `.env` dan tanpa `data/` | berhasil, container `Up (healthy)` |
+| Volume `wabaileys-data` | writable oleh uid 1000; sesi `toni` restore lalu `WhatsApp connection opened` |
+| Isi image | hanya `data/auth_info_baileys/sessions` kosong; tanpa kredensial, registry, atau app key |
