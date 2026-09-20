@@ -1,13 +1,40 @@
 # Gunakan extension REST Client untuk menjalankan request dari file ini
 @appkey = b5a4e372a4ec0c15683ff08e132e7042ebd5b363d338cfd864ba6f826d95dd90
-@baseUrl = http://localhost:8990/md
-@number = 628986818780
+# Basic Auth (management endpoint): base64 dari "admin:admin" — ganti bila kredensial .env berbeda
+@basicAuth = YWRtaW46YWRtaW4=
+@serverUrl = http://localhost:8990
+@baseUrl = {{serverUrl}}/toni
+@number = 6285156326916
 
-### Simulate Send Message
+### Simulate Send Message (App Key)
 POST {{baseUrl}}/send?app_key={{appkey}} HTTP/1.1
 Content-Type: application/json
 
 {
     "number": "{{number}}",
-    "message": "Malu kenapa euy?"
+    "message": "Amankah? Perlu segera dideploy euy.."
 }
+
+### Health Check (tanpa auth)
+GET {{serverUrl}}/health HTTP/1.1
+
+### List Sessions (Basic Auth)
+GET {{serverUrl}}/sessions HTTP/1.1
+Authorization: Basic {{basicAuth}}
+
+### Cek App Key Aktif (Basic Auth)
+GET {{serverUrl}}/appkey HTTP/1.1
+Authorization: Basic {{basicAuth}}
+
+### Generate App Key Baru (Basic Auth)
+# Key langsung aktif dan otomatis ditulis ke .env
+GET {{serverUrl}}/generate-appkey HTTP/1.1
+Authorization: Basic {{basicAuth}}
+
+### Buat Session Baru (Basic Auth)
+POST {{serverUrl}}/sessions/akun1 HTTP/1.1
+Authorization: Basic {{basicAuth}}
+
+### Hapus Session (Basic Auth)
+DELETE {{serverUrl}}/akun1 HTTP/1.1
+Authorization: Basic {{basicAuth}}

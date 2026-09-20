@@ -43,6 +43,32 @@ function generateAppKey(): string {
   return randomBytes(32).toString('hex')
 }
 
+// Persist app key to .env (Bun loads .env automatically on startup)
+function saveAppKeyToEnv(appKey: string): boolean {
+  const envFile = '.env'
+
+  try {
+    const line = `APP_KEY=${appKey}`
+    let content = existsSync(envFile) ? readFileSync(envFile, 'utf-8') : ''
+
+    if (/^APP_KEY=.*$/m.test(content)) {
+      content = content.replace(/^APP_KEY=.*$/m, line)
+    } else {
+      if (content && !content.endsWith('\n')) {
+        content += '\n'
+      }
+      content += `${line}\n`
+    }
+
+    writeFileSync(envFile, content)
+    console.log('App key saved to .env')
+    return true
+  } catch (error) {
+    console.error('Error saving app key to .env:', error)
+    return false
+  }
+}
+
 // Get process memory usage
 function getProcessMemory() {
   const usage = process.memoryUsage()
@@ -161,6 +187,13 @@ async function connectSession(sessionName: string) {
         if (shouldReconnect) {
           // Schedule reconnect with delay to avoid rapid reconnection
           sessionData.reconnectTimeout = setTimeout(() => {
+            // Session may have been deleted while this timeout was pending
+            if (!sessions.has(sessionName)) {
+              console.log(`[${sessionName}] Session removed, skipping scheduled reconnection`)
+              sessionData.isReconnecting = false
+              return
+            }
+
             console.log(`[${sessionName}] Attempting scheduled reconnection...`)
             connectSession(sessionName).catch(err => {
               console.error(`[${sessionName}] Scheduled reconnection failed:`, err.message)
@@ -356,7 +389,7 @@ async function validateBasicAuth(c: any, next: any) {
 // Initialize sessions on startup
 loadSessionsRegistry()
 
-app.get('/', (c) => {
+app.get('/', validateBasicAuth, (c) => {
   try {
     const htmlPath = join(process.cwd(), 'public', 'index.html')
     if (existsSync(htmlPath)) {
@@ -482,7 +515,7 @@ app.post('/sessions/:name', validateBasicAuth, async (c) => {
 })
 
 // Get QR code for specific session
-app.get('/:session_name/qr', async (c) => {
+app.get('/:session_name/qr', validateBasicAuth, async (c) => {
   const sessionName = c.req.param('session_name')
   const sessionData = sessions.get(sessionName)
   
@@ -652,6 +685,12 @@ app.delete('/:session_name', validateBasicAuth, async (c) => {
   }
   
   try {
+    // Cancel any pending reconnection so the deleted session cannot come back
+    if (sessionData.reconnectTimeout) {
+      clearTimeout(sessionData.reconnectTimeout)
+      sessionData.reconnectTimeout = undefined
+    }
+
     // Close socket connection
     if (sessionData.sock) {
       await sessionData.sock.logout()
@@ -662,8 +701,11 @@ app.delete('/:session_name', validateBasicAuth, async (c) => {
       rmSync(sessionData.authFolder, { recursive: true, force: true })
     }
     
-    // Remove from registry
+    // Remove from registry and drop all connection state
     sessions.delete(sessionName)
+    sessionData.isReconnecting = false
+    sessionData.isConnected = false
+    sessionData.sock = null
     saveSessionsRegistry()
     
     return c.json({
@@ -683,9 +725,10 @@ app.delete('/:session_name', validateBasicAuth, async (c) => {
 // Get app key endpoint
 app.get('/appkey', validateBasicAuth, async (c) => {
   try {
-    const appKey = process.env.APP_KEY || ''
+    // Use the same source of truth as validateAppKey so both stay in sync
+    const appKey = currentAppKey
     let notes = ''
-    if(!appKey) {
+    if (!appKey) {
       notes = 'App key not set in .env'
     } else {
       notes = 'Your current app key:'
@@ -707,14 +750,21 @@ app.get('/appkey', validateBasicAuth, async (c) => {
 })
 
 // Generate app key endpoint
-app.get('/generate-appkey', async (c) => {
+app.get('/generate-appkey', validateBasicAuth, async (c) => {
   try {
     const appKey = generateAppKey()
 
+    // Apply immediately and persist so the new key survives a restart
+    currentAppKey = appKey
+    const persisted = saveAppKeyToEnv(appKey)
+
     return c.json({
       success: true,
-      message: "App key generated successfully. Save it to .env file.",
+      message: persisted
+        ? 'App key generated and saved to .env file.'
+        : 'App key generated but could not be saved. Save it to .env manually.',
       app_key: appKey,
+      persisted,
     })
   } catch (error) {
     console.error('Error generating app key:', error)
@@ -753,6 +803,6 @@ app.get('/health', (c) => {
 })
 
 export default {
-  port: parseInt(process.env.PORT || '3001'),
+  port: parseInt(process.env.PORT || '8990'),
   fetch: app.fetch
 }

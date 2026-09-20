@@ -32,7 +32,11 @@ WhatsApp API dengan dukungan multi-session menggunakan Hono framework dan Bailey
 bun install
 ```
 
-3. Buat file `.env`:
+3. Salin file contoh `.env.example` menjadi `.env`, lalu sesuaikan nilainya:
+```bash
+cp .env.example .env
+```
+
 ```env
 PORT=8990
 
@@ -56,6 +60,12 @@ MAX_SESSIONS=15
 
 ```bash
 bun run src/index.ts
+```
+
+Saat development, gunakan mode hot reload:
+
+```bash
+bun run dev
 ```
 
 Server akan berjalan di `http://localhost:8990` (atau port yang Anda set di `.env`)
@@ -109,23 +119,26 @@ Session name harus memenuhi kriteria:
 
 ### Generate App Key Baru
 
+**Authentication:** HTTP Basic Auth
+
 ```bash
-curl http://localhost:8990/generate-appkey
+curl http://localhost:8990/generate-appkey \
+  -u admin:your-secure-password
 ```
 
 Response:
 ```json
 {
   "success": true,
-  "message": "App key generated successfully. Save it to .env file.",
-  "app_key": "b5a4e372a4ec0c15683ff08e132e7042ebd5b363d338cfd864ba6f826d95dd90"
+  "message": "App key generated and saved to .env file.",
+  "app_key": "b5a4e372a4ec0c15683ff08e132e7042ebd5b363d338cfd864ba6f826d95dd90",
+  "persisted": true
 }
 ```
 
-**Simpan App Key** tersebut ke file `.env`:
-```env
-APP_KEY=b5a4e372a4ec0c15683ff08e132e7042ebd5b363d338cfd864ba6f826d95dd90
-```
+App key baru **langsung aktif** (tidak perlu restart) dan otomatis ditulis ke file `.env`,
+sehingga tetap berlaku setelah aplikasi dijalankan ulang. Bila penulisan `.env` gagal,
+respons berisi `"persisted": false` dan Anda harus menyimpan key tersebut secara manual.
 
 ### Cek App Key yang Terdaftar
 
@@ -285,9 +298,15 @@ curl -X DELETE http://localhost:8990/akun1 \
 ### 6. GET `/:session_name/qr`
 Menampilkan QR code untuk menghubungkan WhatsApp pada session tertentu.
 
+**Authentication:** HTTP Basic Auth
+
 **Response:** HTML page dengan QR code
 
 **Akses via browser:** `http://localhost:8990/akun1/qr`
+
+Browser meminta username dan password Basic Auth satu kali, lalu memakai kredensial tersebut
+untuk refresh otomatis setiap 5 detik. Karena halaman dashboard juga dilindungi Basic Auth,
+kredensial biasanya sudah tersimpan di browser saat QR dibuka dari dashboard.
 
 ---
 
@@ -335,19 +354,23 @@ curl -X POST "http://localhost:8990/akun1/send?app_key=YOUR_APP_KEY" \
 ---
 
 ### 8. GET `/generate-appkey`
-Generate app key baru.
+Generate app key baru, langsung mengaktifkannya, dan menyimpannya ke `.env`.
+
+**Authentication:** HTTP Basic Auth
 
 **Request:**
 ```bash
-curl http://localhost:8990/generate-appkey
+curl http://localhost:8990/generate-appkey \
+  -u admin:password
 ```
 
 **Response:**
 ```json
 {
   "success": true,
-  "message": "App key generated successfully. Save it to .env file.",
-  "app_key": "b5a4e372a4ec0c15683ff08e132e7042ebd5b363d338cfd864ba6f826d95dd90"
+  "message": "App key generated and saved to .env file.",
+  "app_key": "b5a4e372a4ec0c15683ff08e132e7042ebd5b363d338cfd864ba6f826d95dd90",
+  "persisted": true
 }
 ```
 

@@ -617,6 +617,26 @@ sendWhatsAppMessage('yoursession', '628986818780', 'Hello from WhatsApp API!')
       const API_BASE = window.location.origin;
       let authToken = "";
 
+      // The browser already handles HTTP Basic Auth for GET /, and same-origin
+      // requests reuse those cached credentials. Only include the header when the
+      // user supplied credentials manually through the fallback prompt.
+      function authHeaders() {
+        return authToken ? { Authorization: `Basic ${authToken}` } : {};
+      }
+
+      async function ensureAuthenticated() {
+        try {
+          const probe = await fetch(`${API_BASE}/sessions`);
+          if (probe.ok) {
+            return true;
+          }
+        } catch (error) {
+          console.error("Auth probe failed:", error);
+        }
+
+        return getCredentials();
+      }
+
       function switchTab(tabName) {
         // Hide all tabs
         document.querySelectorAll('.tab-content').forEach(tab => {
@@ -706,9 +726,7 @@ sendWhatsAppMessage('yoursession', '628986818780', 'Hello from WhatsApp API!')
 
         try {
           const response = await fetch(`${API_BASE}/sessions`, {
-            headers: {
-              Authorization: `Basic ${authToken}`,
-            },
+            headers: authHeaders(),
           });
 
           if (!response.ok) {
@@ -799,9 +817,7 @@ sendWhatsAppMessage('yoursession', '628986818780', 'Hello from WhatsApp API!')
         try {
           const response = await fetch(`${API_BASE}/sessions/${sessionName}`, {
             method: "POST",
-            headers: {
-              Authorization: `Basic ${authToken}`,
-            },
+            headers: authHeaders(),
           });
 
           const data = await response.json();
@@ -843,9 +859,7 @@ sendWhatsAppMessage('yoursession', '628986818780', 'Hello from WhatsApp API!')
         try {
           const response = await fetch(`${API_BASE}/${sessionName}`, {
             method: "DELETE",
-            headers: {
-              Authorization: `Basic ${authToken}`,
-            },
+            headers: authHeaders(),
           });
 
           const data = await response.json();
@@ -875,15 +889,18 @@ sendWhatsAppMessage('yoursession', '628986818780', 'Hello from WhatsApp API!')
         });
 
       // Initialize
-      if (getCredentials()) {
+      ensureAuthenticated().then((ready) => {
+        if (!ready) {
+          showAlert("Authentication required", "error");
+          return;
+        }
+
         fetchSessions();
         fetchHealth();
         // Auto-refresh every 10 seconds
         setInterval(fetchSessions, 10000);
         setInterval(fetchHealth, 5000);
-      } else {
-        showAlert("Authentication required", "error");
-      }
+      });
     </script>
   </body>
 </html>
