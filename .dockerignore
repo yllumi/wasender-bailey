@@ -1,0 +1,20 @@
+# Jangan pernah masukkan kredensial WhatsApp, app key, atau data nomor telepon
+# ke dalam image. Ketiganya di-mount saat runtime dari host.
+auth_info_baileys
+sessions_registry.json
+.env
+.env.*
+
+# Dependency di-install ulang di dalam image
+node_modules
+
+# Tidak dibutuhkan saat runtime
+.git
+.github
+.gitignore
+simulate.http
+README.md
+Dockerfile
+docker-compose*.yml
+compose*.yml
+.dockerignore

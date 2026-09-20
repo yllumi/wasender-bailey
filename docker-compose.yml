@@ -1,0 +1,59 @@
+name: wabaileys
+
+services:
+  wabaileys:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: wabaileys:latest
+    container_name: wabaileys
+    restart: unless-stopped
+
+    # init:true supaya Bun tidak jadi PID 1 (reap zombie + SIGTERM rapi saat stop)
+    init: true
+    # Beri waktu socket Baileys menutup koneksi sebelum SIGKILL
+    stop_grace_period: 20s
+
+    # PORT/APP_KEY/HTTP_AUTH_*/MAX_SESSIONS dibaca dari .env di root repo ini.
+    env_file:
+      - .env
+
+    ports:
+      # Terbuka di semua interface. Awali dengan "127.0.0.1:" bila hanya perlu
+      # diakses dari mesin ini sendiri.
+      - "${PORT:-8990}:${PORT:-8990}"
+
+    volumes:
+      # Kredensial WhatsApp per session. Wajib persisten, kalau hilang harus
+      # scan QR ulang. Jangan pernah di-commit.
+      - type: bind
+        source: ./auth_info_baileys
+        target: /app/auth_info_baileys
+
+      # Registry session (berisi nomor telepon). create_host_path: false membuat
+      # compose gagal dengan pesan jelas bila file belum ada, daripada diam-diam
+      # membuat direktori dan membuat app error.
+      - type: bind
+        source: ./sessions_registry.json
+        target: /app/sessions_registry.json
+        bind:
+          create_host_path: false
+
+      # Ikut di-mount karena /generate-appkey menulis ulang APP_KEY ke file ini.
+      - type: bind
+        source: ./.env
+        target: /app/.env
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS \"http://127.0.0.1:$${PORT:-8990}/health\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+    # Log Baileys sangat cerewet; batasi supaya disk tidak penuh
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

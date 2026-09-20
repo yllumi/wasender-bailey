@@ -32,6 +32,10 @@ secara bersamaan, lalu mengeksposnya lewat HTTP endpoint untuk kirim pesan.
 bun install                      # install dependencies
 bun run dev                      # dev server, hot reload -> bun run --hot src/index.ts
 bun run src/index.ts             # jalankan tanpa hot reload
+
+docker compose up -d --build     # jalankan di container
+docker compose logs -f           # ikuti log container
+docker compose down              # stop + hapus container
 ```
 
 Tidak ada test suite, linter, formatter, atau CI di repo ini. Jangan mengklaim "tests pass" —
@@ -48,6 +52,8 @@ simulate.http         # contoh request manual (REST Client)
 sessions_registry.json# data runtime, gitignored
 auth_info_baileys/    # kredensial Baileys per session, gitignored
 .env.example          # template konfigurasi; salin ke .env (yang gitignored)
+Dockerfile            # image runtime (oven/bun:1-alpine, multi-stage)
+docker-compose.yml    # orkestrasi container + bind mount runtime state
 tsconfig.json         # hanya strict + jsx hono
 ```
 
@@ -55,6 +61,20 @@ tsconfig.json         # hanya strict + jsx hono
 Tidak ada folder `routes/`, `services/`, atau `middleware/`. Untuk perubahan kecil,
 edit langsung di `src/index.ts` dan ikuti pola yang sudah ada — jangan refactor jadi
 banyak modul kecuali diminta secara eksplisit.
+
+### Docker
+
+`docker-compose.yml` mem-bind-mount `auth_info_baileys/`, `sessions_registry.json`, dan `.env`
+dari root repo, karena app menulis ketiganya relatif ke CWD (`/app`). Jangan menggantinya
+menjadi named volume tanpa memindahkan datanya — session yang sudah ada akan hilang dan user
+harus scan QR ulang.
+
+`sessions_registry.json` memakai `create_host_path: false` supaya `docker compose up` gagal
+dengan pesan jelas bila file belum ada. Docker cenderung membuat **direktori** untuk bind mount
+yang sumbernya tidak ada, dan app akan gagal menulis registry.
+
+Saat menambah file runtime baru: tambahkan ke `.dockerignore` bila berisi rahasia, dan tambahkan
+bind mount bila perlu persisten.
 
 ---
 
@@ -192,6 +212,11 @@ Saat menambah logging, jangan echo `app_key`, password, atau isi `creds.json`.
 Perhatikan juga bahwa nilai rahasia tidak boleh di-hardcode di `public/index.html`;
 nilai `YOUR_APP_KEY` dan `http://your-server:8990` di-inject saat runtime oleh handler `GET /`.
 
+Jangan hapus entri `auth_info_baileys`, `.env`, dan `sessions_registry.json` dari
+`.dockerignore` — tanpa itu ketiganya ikut ter-bake ke dalam image. Jangan pula menjalankan
+`docker compose config` tanpa `--quiet`: perintah itu mengekspansi `env_file` dan mencetak
+nilai `APP_KEY` serta password ke terminal.
+
 ---
 
 ## 9. Inkonsistensi yang Sudah Diperbaiki
@@ -225,6 +250,8 @@ Kelima temuan lama sudah beres. Jangan mengembalikannya tanpa alasan kuat:
 - [ ] Kalau menyentuh `isReconnecting` / `reconnectTimeout`, semua jalur keluar sudah reset state.
 - [ ] Perubahan perilaku API → update juga `README.md` (Bahasa Indonesia) dan `simulate.http`.
 - [ ] Tidak ada rahasia atau data nomor telepon yang ikut ter-commit.
+- [ ] Kalau menyentuh `Dockerfile` / `docker-compose.yml`: `docker compose up -d --build`
+      berhasil, container `healthy`, dan `GET /health` membalas `success: true`.
 - [ ] Verifikasi dengan `bun run dev` lalu cek `GET /health`.
 
 ### Status verifikasi (pass perbaikan bagian 9)
@@ -240,3 +267,5 @@ Semua poin di atas sudah dipenuhi dan diuji manual pada server `bun run dev` (po
 | `GET /generate-appkey` dengan Basic Auth | `persisted: true`, `.env` diperbarui (tetap 1 baris `APP_KEY`), `currentAppKey` langsung aktif |
 | HTML dashboard | placeholder `YOUR_APP_KEY` sudah tergantikan |
 | `git status` | `.env`, `sessions_registry.json`, `auth_info_baileys/` ignored |
+| `docker compose up -d --build` | image 154 MB, container `Up (healthy)`, bind mount writable oleh uid 1000 |
+| Isi image | `.env` 0 byte, `auth_info_baileys/sessions` kosong, registry `[]`, tidak ada jejak app key |

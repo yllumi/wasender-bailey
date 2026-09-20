@@ -70,6 +70,62 @@ bun run dev
 
 Server akan berjalan di `http://localhost:8990` (atau port yang Anda set di `.env`)
 
+## 🐳 Menjalankan dengan Docker
+
+Tersedia `Dockerfile` dan `docker-compose.yml` di root repo.
+
+### Prasyarat
+
+File runtime berikut di-mount dari host, jadi harus sudah ada sebelum `docker compose up`:
+
+```bash
+cp .env.example .env           # konfigurasi (wajib)
+touch sessions_registry.json   # registry session
+```
+
+Folder `auth_info_baileys/` boleh belum ada; Docker akan membuatnya otomatis.
+
+> `sessions_registry.json` harus berupa **file**. Bila belum ada, compose berhenti dengan
+> pesan error — ini disengaja, karena Docker cenderung membuat **direktori** untuk bind
+> mount yang sumbernya tidak ada, dan app akan gagal menulis registry.
+
+### Menjalankan
+
+```bash
+docker compose up -d --build
+```
+
+Cek status, health, dan log:
+
+```bash
+docker compose ps
+docker compose logs -f
+```
+
+Health check otomatis memanggil `GET /health`, jadi container ditandai `healthy` setelah
+endpoint itu membalas OK.
+
+### Berhenti dan memperbarui
+
+```bash
+docker compose down            # stop + hapus container (data di host tetap aman)
+docker compose up -d --build   # rebuild setelah mengubah kode
+```
+
+### Catatan penting
+
+- **Port harus bebas.** Hentikan dulu `bun run dev` bila sedang berjalan di port 8990.
+  Ganti `PORT` di `.env` untuk memakai port lain — port yang dipublikasikan mengikutinya.
+- **Jangan menjalankan dua instance sekaligus** dengan folder `auth_info_baileys/` yang sama.
+  Dua proses dengan kredensial yang sama bisa membuat sesi WhatsApp saling bentrok.
+- `auth_info_baileys/`, `sessions_registry.json`, dan `.env` di-mount dari host sehingga
+  session tidak hilang saat container dibuat ulang. Ketiganya **tidak** ikut ke dalam image
+  (lihat `.dockerignore`).
+- Container berjalan sebagai user non-root `bun` (uid 1000). Bila uid Anda berbeda, file
+  bind mount bisa tidak bisa ditulis.
+- Port dipublikasikan di semua interface. Awali dengan `127.0.0.1:` di `docker-compose.yml`
+  bila hanya ingin diakses dari mesin ini sendiri.
+
 ## 🌐 Web Management Interface
 
 Buka browser dan akses: `http://localhost:8990`
