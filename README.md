@@ -38,8 +38,6 @@ cp .env.example .env
 ```
 
 ```env
-PORT=8990
-
 # App Key untuk autentikasi API
 APP_KEY=your-secret-app-key-here
 
@@ -68,7 +66,8 @@ Saat development, gunakan mode hot reload:
 bun run dev
 ```
 
-Server akan berjalan di `http://localhost:8990` (atau port yang Anda set di `.env`)
+Server akan berjalan di `http://localhost:8990`. Port bersifat statis dan di-hardcode di
+`src/index.ts`, jadi tidak diatur lewat `.env`.
 
 ## 🐳 Menjalankan dengan Docker
 
@@ -114,8 +113,9 @@ docker compose up -d --build   # rebuild setelah mengubah kode
 
 ### Catatan penting
 
-- **Port harus bebas.** Hentikan dulu `bun run dev` bila sedang berjalan di port 8990.
-  Ganti `PORT` di `.env` untuk memakai port lain — port yang dipublikasikan mengikutinya.
+- **Port statis 8990.** Hentikan dulu `bun run dev` bila sedang berjalan di port 8990.
+  App selalu listen di 8990; untuk mengekspos di port host lain, ubah mapping menjadi
+  mis. `"9000:8990"` di `docker-compose.yml`.
 - **Jangan menjalankan dua instance sekaligus** dengan folder `auth_info_baileys/` yang sama.
   Dua proses dengan kredensial yang sama bisa membuat sesi WhatsApp saling bentrok.
 - `auth_info_baileys/`, `sessions_registry.json`, dan `.env` di-mount dari host sehingga

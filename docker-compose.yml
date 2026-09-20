@@ -14,14 +14,15 @@ services:
     # Beri waktu socket Baileys menutup koneksi sebelum SIGKILL
     stop_grace_period: 20s
 
-    # PORT/APP_KEY/HTTP_AUTH_*/MAX_SESSIONS dibaca dari .env di root repo ini.
+    # APP_KEY/HTTP_AUTH_*/MAX_SESSIONS dibaca dari .env di root repo ini.
+    # Port tidak diambil dari env: app selalu listen di 8990 (lihat src/index.ts).
     env_file:
       - .env
 
     ports:
-      # Terbuka di semua interface. Awali dengan "127.0.0.1:" bila hanya perlu
-      # diakses dari mesin ini sendiri.
-      - "${PORT:-8990}:${PORT:-8990}"
+      # host:container. Ubah sisi kiri (mis. "9000:8990") untuk port host lain.
+      # Terbuka di semua interface; awali "127.0.0.1:" bila hanya perlu di mesin ini.
+      - "8990:8990"
 
     volumes:
       # Kredensial WhatsApp per session. Wajib persisten, kalau hilang harus
@@ -45,7 +46,7 @@ services:
         target: /app/.env
 
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS \"http://127.0.0.1:$${PORT:-8990}/health\" || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS \"http://127.0.0.1:8990/health\" || exit 1"]
       interval: 30s
       timeout: 5s
       start_period: 20s

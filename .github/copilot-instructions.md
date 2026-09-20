@@ -84,11 +84,15 @@ Dibaca dari `process.env` (Bun memuat `.env` otomatis):
 
 | Variabel | Default | Catatan |
 | --- | --- | --- |
-| `PORT` | `8990` | Sama dengan README dan `.env.example`. |
 | `APP_KEY` | `''` | Dipakai untuk `validateAppKey`. Dibaca sekali saat startup ke `currentAppKey`. |
 | `HTTP_AUTH_USERNAME` | `admin` | Basic Auth management endpoint. |
 | `HTTP_AUTH_PASSWORD` | `admin` | Basic Auth management endpoint. |
 | `MAX_SESSIONS` | `15` | Batas jumlah session in-memory. |
+
+**Port statis.** Port sengaja **tidak** dibaca dari environment. Nilainya di-hardcode di
+`const PORT = 8990` (`src/index.ts`) dan dipakai oleh `serve()` serta fallback host dashboard.
+Jangan mengembalikan `process.env.PORT` tanpa diminta; untuk mengekspos di port host lain,
+ubah mapping di `docker-compose.yml` (mis. `"9000:8990"`).
 
 Template ada di `.env.example` — salin dengan `cp .env.example .env`. **Hanya `.env` yang di-load
 Bun otomatis**, dan file itu gitignored sehingga tidak boleh di-commit atau dicetak isinya.

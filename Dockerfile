@@ -30,16 +30,15 @@ COPY --chown=bun:bun src ./src
 COPY --chown=bun:bun public ./public
 
 ENV NODE_ENV=production
-ENV PORT=8990
 
 # Image oven/bun sudah menyediakan user non-root `bun` (uid 1000)
 USER bun
 
+# Port statis, di-hardcode di src/index.ts
 EXPOSE 8990
 
 # GET /health bersifat publik, jadi tidak butuh kredensial.
-# ${PORT:-8990} diekspansi saat runtime oleh shell container, bukan saat build.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD curl -fsS "http://127.0.0.1:${PORT:-8990}/health" || exit 1
+  CMD curl -fsS "http://127.0.0.1:8990/health" || exit 1
 
 CMD ["bun", "run", "src/index.ts"]

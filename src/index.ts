@@ -29,6 +29,9 @@ interface SessionData {
 const sessions = new Map<string, SessionData>()
 const SESSIONS_REGISTRY_FILE = 'sessions_registry.json'
 const AUTH_BASE_DIR = 'auth_info_baileys/sessions'
+// Port sengaja statis, bukan dari env. Untuk mengekspos di port host lain, ubah
+// mapping di docker-compose.yml (mis. "9000:8990").
+const PORT = 8990
 const MAX_SESSIONS = parseInt(process.env.MAX_SESSIONS || '15')
 
 let currentAppKey: string = process.env.APP_KEY || ''
@@ -396,7 +399,7 @@ app.get('/', validateBasicAuth, (c) => {
       let htmlContent = readFileSync(htmlPath, 'utf-8')
       
       // Inject actual values into HTML
-      const host = c.req.header('host') || 'localhost:8990'
+      const host = c.req.header('host') || `localhost:${PORT}`
       const proto = c.req.header('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https')
       const serverUrl = `${proto}://${host}`
       
@@ -803,6 +806,6 @@ app.get('/health', (c) => {
 })
 
 export default {
-  port: parseInt(process.env.PORT || '8990'),
+  port: PORT,
   fetch: app.fetch
 }
